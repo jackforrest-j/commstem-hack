@@ -22,11 +22,11 @@ async function uploadFile(file, name) {
 }
 
 export default function UploadPanel({ onSuccess }) {
-  const inputRef   = useRef(null);
+  const inputRef              = useRef(null);
   const [drag, setDrag]       = useState(false);
   const [file, setFile]       = useState(null);
   const [name, setName]       = useState('');
-  const [status, setStatus]   = useState('idle'); // idle | uploading | done | error
+  const [status, setStatus]   = useState('idle');
   const [result, setResult]   = useState(null);
   const [errMsg, setErrMsg]   = useState('');
 
@@ -67,57 +67,154 @@ export default function UploadPanel({ onSuccess }) {
   const inputStyle = {
     background: 'var(--bg-input)',
     border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
     color: 'var(--text-primary)',
-    fontFamily: 'var(--font-mono)',
+    fontFamily: 'var(--font-ui)',
     fontSize: 12,
-    padding: '8px 10px',
+    padding: '9px 12px',
     outline: 'none',
     width: '100%',
-    transition: 'border-color 120ms',
+    transition: 'border-color 150ms, box-shadow 150ms',
   };
 
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)',
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: 'var(--shadow-card)',
+      overflow: 'hidden',
+    }}>
       {/* Header */}
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-panel-header)', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>08 //</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>Ingest Dataset</span>
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>CSV · JSON · max 20 MB</span>
+      <div style={{
+        padding: '11px 16px',
+        borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--bg-panel-header)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          color: 'var(--accent)',
+          fontWeight: 700,
+          background: 'var(--accent-dim)',
+          border: '1px solid rgba(133,169,71,0.30)',
+          padding: '2px 6px',
+          borderRadius: 3,
+        }}>08</span>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--text-primary)',
+        }}>Ingest Dataset</span>
+        <span style={{
+          fontSize: 10,
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono)',
+        }}>CSV · JSON · max 20 MB</span>
       </div>
 
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 18 }}>
         {status === 'done' && result ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 16,
+              padding: '10px 14px',
+              background: 'rgba(62,123,39,0.08)',
+              border: '1px solid rgba(62,123,39,0.25)',
+              borderRadius: 'var(--radius-sm)',
+            }}>
               <span style={{ color: 'var(--green)', fontSize: 16 }}>✓</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>Ingested successfully</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>
+                Ingested successfully
+              </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
               {[
                 ['Dataset', result.dataset.name],
                 ['Rows', result.dataset.row_count.toLocaleString()],
                 ['Columns', result.columns.length],
               ].map(([l, v]) => (
-                <div key={l} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 12px' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{l}</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{v}</div>
+                <div key={l} style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 12px',
+                }}>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    color: 'var(--text-muted)',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    marginBottom: 4,
+                  }}>{l}</div>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                  }}>{v}</div>
                 </div>
               ))}
             </div>
             {result.preview?.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Columns detected</div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                }}>Columns detected</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {result.columns.map(c => (
-                    <span key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '3px 8px', background: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--accent-hot)', letterSpacing: '0.04em' }}>
+                    <span key={c} style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      padding: '3px 8px',
+                      background: 'var(--accent-dim)',
+                      border: '1px solid rgba(133,169,71,0.30)',
+                      color: 'var(--accent-hot)',
+                      borderRadius: 3,
+                      letterSpacing: '0.04em',
+                    }}>
                       {c}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-            <button onClick={reset} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '7px 14px', letterSpacing: '0.08em', cursor: 'pointer' }}>
-              [ Upload another ]
+            <button
+              onClick={reset}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '7px 16px',
+                letterSpacing: '0.06em',
+                cursor: 'pointer',
+                background: 'transparent',
+                transition: 'all 150ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-dim)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent-hot)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            >
+              Upload another →
             </button>
           </div>
         ) : (
@@ -130,17 +227,19 @@ export default function UploadPanel({ onSuccess }) {
               onClick={() => inputRef.current?.click()}
               style={{
                 border: `2px dashed ${drag ? 'var(--accent)' : file ? 'var(--green)' : 'var(--border-strong)'}`,
-                background: drag ? 'var(--accent-dim)' : file ? 'rgba(16,185,129,0.05)' : 'var(--bg-input)',
-                padding: '24px 20px',
+                borderRadius: 'var(--radius)',
+                background: drag ? 'var(--accent-dim)' : file ? 'rgba(62,123,39,0.06)' : 'var(--bg-elevated)',
+                padding: '28px 20px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 marginBottom: 14,
-                transition: 'border-color 120ms, background 120ms',
+                transition: 'border-color 150ms, background 150ms',
               }}
             >
               <input ref={inputRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
               {file ? (
                 <div>
+                  <div style={{ fontSize: 22, marginBottom: 8, color: 'var(--green)' }}>✓</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--green)', fontWeight: 600, marginBottom: 4 }}>
                     {file.name}
                   </div>
@@ -150,11 +249,11 @@ export default function UploadPanel({ onSuccess }) {
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: 24, color: 'var(--text-dim)', marginBottom: 8 }}>⬆</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  <div style={{ fontSize: 28, color: 'var(--text-dim)', marginBottom: 10 }}>⬆</div>
+                  <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
                     Drop CSV or JSON here
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     or click to browse
                   </div>
                 </div>
@@ -164,7 +263,15 @@ export default function UploadPanel({ onSuccess }) {
             {/* Dataset name */}
             {file && (
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 5 }}>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginBottom: 5,
+                }}>
                   Dataset name
                 </div>
                 <input
@@ -172,14 +279,23 @@ export default function UploadPanel({ onSuccess }) {
                   onChange={e => setName(e.target.value)}
                   placeholder="e.g. survey_results_2024"
                   style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  onFocus={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(133,169,71,0.12)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
                 />
               </div>
             )}
 
             {status === 'error' && (
-              <div style={{ padding: '8px 12px', marginBottom: 12, border: '1px solid var(--red)', background: 'rgba(239,68,68,0.08)', color: 'var(--red)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+              <div style={{
+                padding: '9px 12px',
+                marginBottom: 12,
+                border: '1px solid rgba(220,38,38,0.30)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(220,38,38,0.06)',
+                color: 'var(--red)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+              }}>
                 ✗ {errMsg}
               </div>
             )}
@@ -189,20 +305,22 @@ export default function UploadPanel({ onSuccess }) {
               disabled={!file || status === 'uploading'}
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '11px',
                 background: file && status !== 'uploading' ? 'var(--accent)' : 'var(--bg-elevated)',
-                color: file && status !== 'uploading' ? '#0a0f18' : 'var(--text-muted)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: file && status !== 'uploading' ? '#123524' : 'var(--text-muted)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
                 cursor: file && status !== 'uploading' ? 'pointer' : 'not-allowed',
-                transition: 'background 120ms',
+                transition: 'all 150ms',
                 border: 'none',
               }}
-              onMouseEnter={e => { if (file && status !== 'uploading') e.currentTarget.style.background = 'var(--accent-hot)'; }}
-              onMouseLeave={e => { if (file && status !== 'uploading') e.currentTarget.style.background = 'var(--accent)'; }}
+              onMouseEnter={e => { if (file && status !== 'uploading') { e.currentTarget.style.background = '#96BE52'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(133,169,71,0.35)'; } }}
+              onMouseLeave={e => { if (file && status !== 'uploading') { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.boxShadow = 'none'; } }}
             >
-              {status === 'uploading' ? '◌ Ingesting...' : 'Ingest →'}
+              {status === 'uploading' ? '◌ Ingesting…' : 'Ingest →'}
             </button>
           </form>
         )}

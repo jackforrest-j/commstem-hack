@@ -25,10 +25,10 @@ export default function StatusBar() {
     alignItems: 'center',
     gap: 6,
     padding: '0 14px',
-    borderRight: '1px solid var(--border)',
+    borderRight: '1px solid rgba(239,227,194,0.10)',
     fontFamily: 'var(--font-mono)',
     fontSize: 10,
-    color: 'var(--text-secondary)',
+    color: 'rgba(239,227,194,0.60)',
     height: '100%',
     letterSpacing: '0.04em',
     whiteSpace: 'nowrap',
@@ -38,8 +38,8 @@ export default function StatusBar() {
   return (
     <div style={{
       height: 26,
-      background: 'var(--bg-surface)',
-      borderTop: '1px solid var(--border)',
+      background: 'var(--sidebar-bg)',
+      borderTop: '1px solid rgba(18,53,36,0.3)',
       display: 'flex',
       alignItems: 'stretch',
       position: 'sticky',
@@ -47,32 +47,45 @@ export default function StatusBar() {
       zIndex: 50,
       flexShrink: 0,
     }}>
-      <div style={cell({ background: 'var(--accent-dim)', color: 'var(--accent-hot)', fontWeight: 600, borderRight: '1px solid var(--border)' })}>
-        <span className="pulse" style={{ width: 6, height: 6, background: 'var(--accent)', display: 'inline-block', borderRadius: '50%' }} />
+      <div style={cell({
+        background: 'rgba(133,169,71,0.18)',
+        color: '#85A947',
+        fontWeight: 600,
+        borderRight: '1px solid rgba(133,169,71,0.25)',
+      })}>
+        <span className="pulse" style={{
+          width: 5,
+          height: 5,
+          background: '#85A947',
+          display: 'inline-block',
+          borderRadius: '50%',
+        }} />
         LIVE
       </div>
       <div style={cell()}>
-        <span style={{ color: 'var(--text-muted)' }}>NODE</span>
-        <span>sb-01</span>
+        <span style={{ color: 'rgba(239,227,194,0.35)' }}>NODE</span>
+        <span style={{ color: 'rgba(239,227,194,0.75)' }}>sb-01</span>
       </div>
       <div style={cell()}>
-        <span style={{ color: 'var(--text-muted)' }}>REGION</span>
-        <span>ap-se-1</span>
+        <span style={{ color: 'rgba(239,227,194,0.35)' }}>REGION</span>
+        <span style={{ color: 'rgba(239,227,194,0.75)' }}>ap-se-1</span>
       </div>
       <div style={cell()}>
-        <span style={{ color: 'var(--text-muted)' }}>ENV</span>
-        <span style={{ color: 'var(--accent-2)' }}>development</span>
+        <span style={{ color: 'rgba(239,227,194,0.35)' }}>ENV</span>
+        <span style={{ color: '#85A947' }}>development</span>
       </div>
 
       <div style={{ flex: 1 }} />
 
       <div style={cell()}>
-        <span style={{ color: 'var(--text-muted)' }}>USR</span>
-        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email ?? 'anon'}</span>
+        <span style={{ color: 'rgba(239,227,194,0.35)' }}>USR</span>
+        <span style={{ color: 'rgba(239,227,194,0.75)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {user?.email ?? 'anon'}
+        </span>
       </div>
       <div style={cell()}>
-        <span style={{ color: 'var(--text-muted)' }}>{date}</span>
-        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{time}</span>
+        <span style={{ color: 'rgba(239,227,194,0.45)' }}>{date}</span>
+        <span style={{ color: '#EFE3C2', fontWeight: 600 }}>{time}</span>
       </div>
       {user && (
         <button
@@ -80,9 +93,10 @@ export default function StatusBar() {
           style={{
             ...cell({ borderRight: 'none', cursor: 'pointer' }),
             background: 'none',
+            transition: 'color 150ms',
           }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+          onMouseLeave={e => e.currentTarget.style.color = 'rgba(239,227,194,0.60)'}
         >
           [ SIGN OUT ]
         </button>

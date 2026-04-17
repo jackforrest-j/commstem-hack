@@ -17,46 +17,72 @@ export default function Navbar() {
 
   return (
     <nav style={{
-      height: 48,
+      height: 52,
       background: 'var(--bg-surface)',
       borderBottom: '1px solid var(--border)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '0 var(--s5)',
+      padding: '0 28px',
       position: 'sticky',
       top: 0,
       zIndex: 100,
+      boxShadow: 'var(--shadow-sm)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
         <Link to="/" style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 14,
-          fontWeight: 600,
-          color: 'var(--text-primary)',
-          letterSpacing: '-0.02em',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          textDecoration: 'none',
         }}>
-          DS×CS
+          <span style={{
+            width: 26,
+            height: 26,
+            background: 'var(--sidebar-bg)',
+            borderRadius: 6,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            fontWeight: 800,
+            color: '#85A947',
+          }}>◆</span>
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 14,
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.02em',
+          }}>
+            DS<span style={{ color: 'var(--text-muted)' }}>×</span>CS
+          </span>
         </Link>
 
         {user && (
-          <div style={{ display: 'flex', gap: 20 }}>
-            {NAV_LINKS.map(({ to, label }) => (
-              <Link key={to} to={to} style={{
-                fontSize: 12,
-                color: pathname === to ? 'var(--text-primary)' : 'var(--text-secondary)',
-                borderBottom: pathname === to ? '2px solid var(--accent)' : '2px solid transparent',
-                paddingBottom: 2,
-                transition: 'color 120ms',
-              }}>
-                {label}
-              </Link>
-            ))}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {NAV_LINKS.map(({ to, label }) => {
+              const active = pathname === to;
+              return (
+                <Link key={to} to={to} style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: active ? 'var(--accent-dim)' : 'transparent',
+                  transition: 'all 150ms',
+                  textDecoration: 'none',
+                }}>
+                  {label}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {user ? (
           <>
             <span style={{
@@ -72,23 +98,43 @@ export default function Navbar() {
             <button
               onClick={handleSignOut}
               style={{
-                background: 'none',
+                background: 'var(--bg-elevated)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-secondary)',
                 fontSize: 11,
-                padding: '3px 10px',
-                borderRadius: 2,
+                fontWeight: 500,
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
-                transition: 'background 120ms',
+                transition: 'all 150ms',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--accent-dim)';
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.color = 'var(--accent-hot)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'var(--bg-elevated)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
             >
               Sign out
             </button>
           </>
         ) : (
-          <Link to="/login" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          <Link to="/login" style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'var(--bg-surface)',
+            background: 'var(--accent)',
+            padding: '6px 16px',
+            borderRadius: 'var(--radius-sm)',
+            transition: 'background 150ms',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hot)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--accent)'}
+          >
             Sign in
           </Link>
         )}
