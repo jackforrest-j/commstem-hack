@@ -27,8 +27,8 @@ export default function Sidebar() {
   return (
     <aside style={{
       width: 220,
-      background: 'var(--bg-surface)',
-      borderRight: '1px solid var(--border)',
+      background: 'var(--sidebar-bg)',
+      borderRight: '1px solid rgba(18,53,36,0.2)',
       display: 'flex',
       flexDirection: 'column',
       position: 'sticky',
@@ -36,48 +36,64 @@ export default function Sidebar() {
       height: '100vh',
       flexShrink: 0,
     }}>
+      {/* Logo area */}
       <div style={{
-        padding: '18px 20px 14px',
-        borderBottom: '1px solid var(--border)',
+        padding: '20px 20px 16px',
+        borderBottom: '1px solid var(--sidebar-border)',
       }}>
         <Link to="/" style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 16,
           fontWeight: 700,
           letterSpacing: '-0.02em',
-          color: 'var(--text-primary)',
+          color: 'var(--sidebar-text)',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          textDecoration: 'none',
         }}>
-          <span style={{ color: 'var(--accent)' }}>◆</span>
-          DS<span style={{ color: 'var(--text-muted)' }}>×</span>CS
+          <span style={{
+            width: 24,
+            height: 24,
+            background: 'var(--sidebar-accent)',
+            borderRadius: 6,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            fontWeight: 800,
+            color: '#123524',
+            flexShrink: 0,
+          }}>◆</span>
+          DS<span style={{ color: 'var(--sidebar-muted)' }}>×</span>CS
         </Link>
         <div style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 9,
-          color: 'var(--text-dim)',
+          color: 'var(--sidebar-dim)',
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
-          marginTop: 4,
+          marginTop: 5,
+          paddingLeft: 32,
         }}>
           INTEL · v0.1.0
         </div>
       </div>
 
-      <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto' }}>
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
         {SECTIONS.map(section => (
-          <div key={section.label} style={{ marginBottom: 18 }}>
+          <div key={section.label} style={{ marginBottom: 20 }}>
             <div style={{
-              padding: '5px 20px',
+              padding: '4px 20px 6px',
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
               fontWeight: 600,
-              letterSpacing: '0.16em',
+              letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: 'var(--text-dim)',
+              color: 'var(--sidebar-dim)',
             }}>
-              — {section.label}
+              {section.label}
             </div>
             {section.items.map(item => {
               const active = pathname === item.to && !item.disabled;
@@ -89,23 +105,23 @@ export default function Sidebar() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 12,
-                    padding: '7px 20px',
+                    gap: 10,
+                    padding: '8px 20px',
                     fontSize: 12,
-                    color: active ? 'var(--text-primary)' : item.disabled ? 'var(--text-dim)' : 'var(--text-secondary)',
-                    background: active ? 'var(--accent-dim)' : 'transparent',
-                    borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
+                    color: active ? 'var(--sidebar-text)' : item.disabled ? 'var(--sidebar-dim)' : 'var(--sidebar-muted)',
+                    background: active ? 'var(--sidebar-active)' : 'transparent',
+                    borderLeft: `2px solid ${active ? 'var(--sidebar-accent)' : 'transparent'}`,
                     cursor: item.disabled ? 'not-allowed' : 'pointer',
-                    transition: 'background 120ms, color 120ms',
+                    transition: 'background 150ms, color 150ms',
                     textDecoration: 'none',
                   }}
-                  onMouseEnter={e => { if (!item.disabled && !active) e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+                  onMouseEnter={e => { if (!item.disabled && !active) e.currentTarget.style.background = 'rgba(239,227,194,0.06)'; }}
                   onMouseLeave={e => { if (!item.disabled && !active) e.currentTarget.style.background = 'transparent'; }}
                 >
                   <span style={{
                     fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    color: active ? 'var(--accent)' : 'var(--text-dim)',
+                    fontSize: 9,
+                    color: active ? 'var(--sidebar-accent)' : 'var(--sidebar-dim)',
                     letterSpacing: '0.04em',
                     minWidth: 16,
                   }}>
@@ -117,10 +133,11 @@ export default function Sidebar() {
                       marginLeft: 'auto',
                       fontSize: 8,
                       fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-dim)',
-                      border: '1px solid var(--border)',
+                      color: 'var(--sidebar-dim)',
+                      border: '1px solid var(--sidebar-border)',
                       padding: '1px 4px',
                       letterSpacing: '0.08em',
+                      borderRadius: 2,
                     }}>
                       SOON
                     </span>
@@ -132,10 +149,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* User footer */}
       {user && (
         <div style={{
-          padding: '12px 20px',
-          borderTop: '1px solid var(--border)',
+          padding: '12px 20px 16px',
+          borderTop: '1px solid var(--sidebar-border)',
         }}>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -143,20 +161,41 @@ export default function Sidebar() {
             fontWeight: 600,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            marginBottom: 3,
+            color: 'var(--sidebar-dim)',
+            marginBottom: 4,
           }}>
             Operator
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            color: 'var(--text-primary)',
+            color: 'var(--sidebar-text)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>
             {user.email}
+          </div>
+          <div style={{
+            marginTop: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span style={{
+              width: 6,
+              height: 6,
+              background: 'var(--sidebar-accent)',
+              borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'pulse 1.8s ease-in-out infinite',
+            }} />
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              color: 'var(--sidebar-accent)',
+              letterSpacing: '0.1em',
+            }}>CONNECTED</span>
           </div>
         </div>
       )}
