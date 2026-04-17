@@ -11,7 +11,8 @@ const TYPE_COLOR = {
 
 async function runAnalysis(datasetId, focus) {
   const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch(`/api/analyse/${datasetId}`, {
+  const base = import.meta.env.VITE_API_URL ?? '/api';
+  const res = await fetch(`${base}/analyse/${datasetId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

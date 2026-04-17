@@ -10,7 +10,8 @@
 
 import { supabase } from './supabase';
 
-const BASE_URL = '/api';
+// In dev, Vite proxies /api → localhost:3001. In production, point at Railway.
+const BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 async function request(method, path, body) {
   // Attach auth token if the user is logged in

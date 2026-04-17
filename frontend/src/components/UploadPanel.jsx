@@ -9,7 +9,8 @@ async function uploadFile(file, name) {
   form.append('file', file);
   form.append('name', name);
 
-  const res = await fetch('/api/upload', {
+  const base = import.meta.env.VITE_API_URL ?? '/api';
+  const res = await fetch(`${base}/upload`, {
     method: 'POST',
     headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
     body: form,
