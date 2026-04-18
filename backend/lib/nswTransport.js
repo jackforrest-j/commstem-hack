@@ -36,7 +36,7 @@ async function searchStops(query) {
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
     TfNSWSF: 'true',
-    type_sf: 'any',
+    type_sf: 'stop',
     name_sf: query,
     coordOutputFormat: 'EPSG:4326',
     anyObjFilter_sf: '2',
@@ -112,6 +112,12 @@ async function planTripFromCoord(lat, lon, destinationId) {
 }
 
 function parseJourneys(data) {
+  if (data.error || data.errorCode) {
+    console.error('[NSW trip] API error:', data.error || data.errorCode, data.errorText);
+  }
+  if (!data.journeys?.length) {
+    console.warn('[NSW trip] no journeys in response. Keys:', Object.keys(data));
+  }
   return (data.journeys || []).map(journey => {
     // Filter out walk-only legs (class 99/100) for display, but keep for calculation
     const legs = (journey.legs || []).filter(

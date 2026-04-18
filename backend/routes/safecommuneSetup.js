@@ -36,8 +36,10 @@ router.get('/trips', async (req, res) => {
   if (!from || !to) return res.status(400).json({ error: 'from and to required' });
   try {
     const trips = await planTrip(from, to);
+    if (!trips.length) console.warn(`[trips] no results for from=${from} to=${to}`);
     res.json(trips);
   } catch (e) {
+    console.error('[trips] error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
