@@ -132,6 +132,14 @@ router.post('/set-destination', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Child manually sets journey state (ON_BUS, WAITING, ARRIVED)
+router.post('/state', (req, res) => {
+  const { state } = req.body;
+  if (!['WAITING', 'ON_BUS', 'ARRIVED'].includes(state)) return res.status(400).json({ error: 'invalid state' });
+  store.setManualState(state);
+  res.json({ ok: true });
+});
+
 // Receive child GPS from device
 router.post('/child-location', (req, res) => {
   const { lat, lon } = req.body;

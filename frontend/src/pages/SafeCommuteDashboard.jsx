@@ -1,166 +1,125 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
-function DestinationSender({ apiBase }) {
-  const [query, setQuery]     = useState('');
-  const [results, setResults] = useState([]);
-  const [open, setOpen]       = useState(false);
-  const [sent, setSent]       = useState(null);
-  const timer = useRef(null);
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+const API_BASE     = import.meta.env.VITE_API_URL || '';
+const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
-  const onChange = (e) => {
-    const q = e.target.value;
-    setQuery(q);
-    setSent(null);
-    clearTimeout(timer.current);
-    if (q.length < 2) { setResults([]); setOpen(false); return; }
-    timer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/safecommute/stops?q=${encodeURIComponent(q)}`);
-        setResults(await res.json());
-        setOpen(true);
-      } catch { /* ignore */ }
-    }, 300);
-  };
+const STATE_META = {
+  WAITING:  { bg: '#85A947', label: 'Waiting at stop',  icon: '🚏' },
+  ON_BUS:   { bg: '#3E7B27', label: 'On the bus',       icon: '🚌' },
+  ARRIVED:  { bg: '#2563eb', label: 'Arrived',          icon: '✅' },
+};
 
-  const send = async (stop) => {
-    setQuery(stop.name);
-    setOpen(false);
-    await fetch(`${apiBase}/api/safecommute/set-destination`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: stop.id, name: stop.name }),
-    });
-    setSent(stop.name);
-  };
+function notify(title, body) {
+  if (Notification.permission === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
+}
 
+function ShareLink({ childLink, copied, onCopy }) {
   return (
-    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-        Send destination to child
+    <div style={{
+      background: 'rgba(133,169,71,0.08)', border: '1px solid rgba(133,169,71,0.25)',
+      borderRadius: 12, padding: '12px 14px', marginBottom: 16,
+    }}>
+      <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+        Share with child
       </div>
-      <div style={{ position: 'relative' }}>
-        <input
-          value={query}
-          onChange={onChange}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search destination stop…"
-          style={{
-            width: '100%', padding: '12px 14px', fontSize: 14,
-            border: '1.5px solid var(--border)', borderRadius: 10,
-            background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-            fontFamily: 'var(--font-ui)', outline: 'none', boxSizing: 'border-box',
-          }}
-          onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-          onBlurCapture={e => e.target.style.borderColor = 'var(--border)'}
-        />
-        {open && results.length > 0 && (
-          <div style={{
-            position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 100,
-            background: 'var(--bg-surface)', border: '1px solid var(--border)',
-            borderRadius: 10, marginBottom: 4, overflow: 'hidden',
-            boxShadow: '0 -8px 24px rgba(0,0,0,0.12)',
-          }}>
-            {results.map(s => (
-              <div key={s.id}
-                onMouseDown={() => send(s)}
-                style={{ padding: '12px 14px', cursor: 'pointer', fontSize: 14, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                {s.name}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {sent && (
-        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--accent-hot)', fontWeight: 600 }}>
-          ✓ Sent "{sent}" to child's device
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {childLink}
         </div>
-      )}
+        <button
+          onClick={onCopy}
+          style={{
+            padding: '6px 12px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+            background: copied ? '#3E7B27' : 'var(--accent)', color: '#123524',
+            border: 'none', borderRadius: 7, cursor: 'pointer',
+          }}
+        >
+          {copied ? '✓ Copied' : 'Copy link'}
+        </button>
+      </div>
     </div>
   );
 }
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-const API_BASE     = import.meta.env.VITE_API_URL || '';
-
-const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
-
-const STATE_COLORS = {
-  WAITING: { bg: '#85A947', label: 'Waiting at stop' },
-  ON_BUS:  { bg: '#3E7B27', label: 'On the bus' },
-};
-
 export default function SafeCommuteDashboard() {
-  const navigate = useNavigate();
-  const [phase, setPhase]       = useState('WAITING');
-  const [status, setStatus]     = useState(null);
-  const [sharing, setSharing]   = useState(false);
-  const [isLive, setIsLive]     = useState(false);
-  const lastJson  = useRef(null);
-  const watchRef  = useRef(null);
+  const { user } = useAuth();
+  const [childName, setChildName] = useState('');
+  const [status, setStatus]       = useState(null);
+  const [copied, setCopied]       = useState(false);
+  const prevStateRef  = useRef(null);
+  const prevChildRef  = useRef(null);
+  const childLink     = `${window.location.origin}/child`;
 
-  // Poll status
+  // Load child name
   useEffect(() => {
-    setStatus(null);
-    lastJson.current = null;
+    if (!user) return;
+    supabase.from('children').select('name').eq('parent_id', user.id).single()
+      .then(({ data }) => { if (data?.name) setChildName(data.name); });
+  }, [user]);
+
+  // Request notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Poll status every 3s
+  useEffect(() => {
     const poll = async () => {
       try {
-        const url = isLive
-          ? `${API_BASE}/api/safecommute/status`
-          : `${API_BASE}/api/safecommute/status?phase=${phase}`;
-        const res  = await fetch(url);
+        const res  = await fetch(`${API_BASE}/api/safecommute/status`);
         const data = await res.json();
-        const json = JSON.stringify(data);
-        if (json !== lastJson.current) { lastJson.current = json; setStatus(data); }
+        setStatus(data);
+
+        // Notifications
+        if (!prevChildRef.current && data.child) {
+          notify('SafeCommute', `${childName || 'Your child'} is now sharing their location.`);
+        }
+        if (prevStateRef.current && prevStateRef.current !== data.state) {
+          if (data.state === 'ON_BUS') notify('SafeCommute', `${childName || 'Your child'} is on the bus! 🚌`);
+          if (data.state === 'ARRIVED') notify('SafeCommute', `${childName || 'Your child'} has arrived! ✅`);
+          if (data.state === 'WAITING' && prevStateRef.current === 'ON_BUS') {
+            notify('SafeCommute', `Heads up — ${childName || 'your child'} may have gotten off.`);
+          }
+        }
+        prevStateRef.current = data.state;
+        prevChildRef.current = data.child;
       } catch { /* ignore */ }
     };
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
-  }, [phase, isLive]);
+  }, [childName]);
 
-  // GPS sharing (child's device)
-  const toggleSharing = () => {
-    if (sharing) {
-      navigator.geolocation.clearWatch(watchRef.current);
-      setSharing(false);
-      return;
-    }
-    watchRef.current = navigator.geolocation.watchPosition(
-      pos => {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        fetch(`${API_BASE}/api/safecommute/child-location`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon }),
-        });
-      },
-      err => console.warn('GPS error', err),
-      { enableHighAccuracy: true, maximumAge: 5000 },
-    );
-    setSharing(true);
+  const copyLink = () => {
+    navigator.clipboard.writeText(childLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
   };
 
-  const state       = status?.state        ?? phase;
-  const eta         = status?.eta_minutes;
-  const stop        = status?.nearest_stop ?? '—';
-  const line        = status?.line;
-  const childLng    = status?.child?.lon   ?? 151.206;
-  const childLat    = status?.child?.lat   ?? -33.883;
-  const busLng      = status?.vehicle?.lon ?? 151.215;
-  const busLat      = status?.vehicle?.lat ?? -33.876;
-  const hasVehicle  = !!status?.vehicle;
-  const stateInfo   = STATE_COLORS[state] ?? STATE_COLORS.WAITING;
-
-  const liveMode = status?.mode === 'live';
+  const childConnected = !!status?.child;
+  const state      = status?.state ?? 'WAITING';
+  const eta        = status?.eta_minutes;
+  const stop       = status?.nearest_stop ?? '—';
+  const line       = status?.line;
+  const stateMeta  = STATE_META[state] ?? STATE_META.WAITING;
+  const childLng   = status?.child?.lon ?? INITIAL_VIEW.longitude;
+  const childLat   = status?.child?.lat ?? INITIAL_VIEW.latitude;
+  const liveMode   = status?.mode === 'live';
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
+      <style>{`
+        @keyframes ping { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+      `}</style>
 
       {/* Map */}
       {MAPBOX_TOKEN ? (
@@ -170,18 +129,12 @@ export default function SafeCommuteDashboard() {
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/streets-v12"
         >
-          {status?.child && (
+          {childConnected && (
             <Marker longitude={childLng} latitude={childLat} anchor="center">
-              <div style={{
-                width: 16, height: 16, borderRadius: '50%',
-                background: '#2563eb', border: '3px solid #fff',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-              }} />
-            </Marker>
-          )}
-          {hasVehicle && (
-            <Marker longitude={busLng} latitude={busLat} anchor="center">
-              <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🚌</div>
+              <div style={{ position: 'relative', width: 20, height: 20 }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'ping 1.5s ease-out infinite' }} />
+                <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#2563eb', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
+              </div>
             </Marker>
           )}
         </Map>
@@ -191,106 +144,96 @@ export default function SafeCommuteDashboard() {
         </div>
       )}
 
-      {/* Top header */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-        padding: '48px 20px 32px',
-        background: 'linear-gradient(to bottom, rgba(18,53,36,0.9) 0%, transparent 100%)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-      }}>
-        <div>
+      {/* Waiting overlay — shown until child connects */}
+      {!childConnected && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 20,
+          background: 'rgba(18,53,36,0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: 32, animation: 'fadeIn 0.4s ease',
+        }}>
+          {/* Pulse ring */}
+          <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 32 }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid #85A947', animation: 'ping 1.5s ease-out infinite' }} />
+            <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid rgba(133,169,71,0.5)', animation: 'ping 1.5s ease-out 0.5s infinite' }} />
+            <div style={{ position: 'absolute', inset: 24, borderRadius: '50%', background: '#85A947', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+              🚌
+            </div>
+          </div>
+
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2', marginBottom: 8, textAlign: 'center' }}>
+            Waiting for {childName || 'your child'} to connect…
+          </div>
+          <div style={{ fontSize: 14, color: 'rgba(239,227,194,0.6)', marginBottom: 32, textAlign: 'center', lineHeight: 1.5 }}>
+            Share the link below so they can start sharing their location
+          </div>
+
+          <ShareLink childLink={childLink} copied={copied} onCopy={copyLink} />
+
+          <div style={{ fontSize: 12, color: 'rgba(239,227,194,0.4)', marginTop: 8, textAlign: 'center' }}>
+            This screen will update automatically when they connect
+          </div>
+        </div>
+      )}
+
+      {/* Top header — shown once connected */}
+      {childConnected && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+          padding: '48px 20px 32px',
+          background: 'linear-gradient(to bottom, rgba(18,53,36,0.9) 0%, transparent 100%)',
+          animation: 'fadeIn 0.4s ease',
+        }}>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
             SafeCommute {liveMode && '· Live'}
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2', letterSpacing: '-0.01em' }}>
-            Alex's Journey
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2' }}>
+            {childName ? `${childName}'s Journey` : 'Your child\'s journey'}
           </div>
         </div>
-        <button
-          onClick={() => navigate('/setup')}
-          style={{
-            marginTop: 4, padding: '8px 14px', fontSize: 12, fontWeight: 600,
-            background: 'rgba(239,227,194,0.15)', color: '#EFE3C2',
-            border: '1px solid rgba(239,227,194,0.3)', borderRadius: 8, cursor: 'pointer',
-          }}
-        >
-          Change route
-        </button>
-      </div>
+      )}
 
       {/* Bottom card */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
         background: 'var(--bg-surface)', borderRadius: '20px 20px 0 0',
-        padding: '20px 20px 36px',
-        boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
+        padding: '20px 20px 36px', boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
       }}>
         <div style={{ width: 36, height: 4, background: 'var(--border-strong)', borderRadius: 2, margin: '0 auto 20px' }} />
 
+        {/* Share link — always visible in bottom card */}
+        {childConnected
+          ? <ShareLink childLink={childLink} copied={copied} onCopy={copyLink} />
+          : null
+        }
+
         {/* State badge */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: stateInfo.bg, borderRadius: 8, padding: '10px 16px',
+            background: stateMeta.bg, borderRadius: 8, padding: '10px 16px',
           }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.7)' }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>
-              {stateInfo.label}
-              {line ? ` · ${line}` : ''}
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+              {stateMeta.icon} {stateMeta.label}{line ? ` · ${line}` : ''}
             </span>
           </div>
-
-          {/* GPS share button */}
-          <button
-            onClick={toggleSharing}
-            style={{
-              padding: '10px 14px', fontSize: 12, fontWeight: 600,
-              background: sharing ? 'var(--accent-hot)' : 'var(--bg-elevated)',
-              color: sharing ? '#fff' : 'var(--text-secondary)',
-              border: 'none', borderRadius: 8, cursor: 'pointer',
-            }}
-          >
-            {sharing ? '📍 Sharing' : '📍 Share GPS'}
-          </button>
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: liveMode ? 0 : 24 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>ETA</div>
             <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
-              {eta != null ? `${eta}` : '—'}
+              {eta != null ? eta : '—'}
             </div>
             {eta != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>minutes</div>}
           </div>
           <div style={{ flex: 2, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Next Stop</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{stop}</div>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Stop</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{stop}</div>
           </div>
         </div>
-
-        {/* Demo phase toggle — only in demo mode */}
-        {!liveMode && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 0 }}>
-            {['WAITING', 'ON_BUS'].map(p => (
-              <button
-                key={p}
-                onClick={() => { setPhase(p); setIsLive(false); }}
-                style={{
-                  flex: 1, padding: '12px',
-                  fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.08em',
-                  cursor: 'pointer', border: 'none', borderRadius: 8,
-                  background: phase === p ? 'var(--accent-hot)' : 'var(--bg-elevated)',
-                  color: phase === p ? '#fff' : 'var(--text-secondary)',
-                }}
-              >
-                {p.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <DestinationSender apiBase={API_BASE} />
       </div>
     </div>
   );

@@ -28,7 +28,8 @@ router.get('/status', async (req, res) => {
       } catch { /* non-fatal */ }
     }
 
-    let state = child ? 'ON_BUS' : 'WAITING';
+    const manualState = store.getManualState();
+    let state = manualState || (child ? 'ON_BUS' : 'WAITING');
     const nearest_stop = activeLeg?.from || '—';
 
     return res.json({

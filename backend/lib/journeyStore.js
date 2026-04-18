@@ -1,10 +1,13 @@
-// In-memory state for the active journey and child location
 let activeJourney = null;
 let childLocation = null;
+let manualState   = null;
 
 module.exports = {
-  getJourney:        ()    => activeJourney,
-  setJourney:        (j)   => { activeJourney = j; },
-  getChildLocation:  ()    => childLocation,
-  setChildLocation:  (loc) => { childLocation = loc; },
+  getJourney:       ()    => activeJourney,
+  setJourney:       (j)   => { activeJourney = j; manualState = null; },
+  getChildLocation: ()    => childLocation,
+  setChildLocation: (loc) => { childLocation = loc; },
+  getManualState:   ()    => manualState,
+  setManualState:   (s)   => { manualState = s; },
+  reset:            ()    => { activeJourney = null; childLocation = null; manualState = null; },
 };
