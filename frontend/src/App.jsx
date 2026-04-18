@@ -17,7 +17,8 @@ function RequireSetup({ children }) {
 
   useEffect(() => {
     if (!user) { navigate('/login', { replace: true }); return; }
-    supabase.from('children').select('id').eq('parent_id', user.id).then(({ data }) => {
+    supabase.from('children').select('id').eq('parent_id', user.id).then(({ data, error }) => {
+      if (error) { console.error('children check failed:', error); setReady(true); return; }
       if (!data?.length) navigate('/account-setup', { replace: true });
       else setReady(true);
     });

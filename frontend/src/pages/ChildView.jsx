@@ -19,7 +19,9 @@ export default function ChildView() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lat, lon }),
-        });
+        })
+          .then(r => { if (!r.ok) setError(`Server error: ${r.status} — check CORS/API config`); else setError(''); })
+          .catch(e => setError(`Cannot reach server: ${e.message}`));
       },
       err => setError(`GPS error: ${err.message}`),
       { enableHighAccuracy: true, maximumAge: 5000 },
