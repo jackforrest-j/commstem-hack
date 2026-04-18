@@ -26,6 +26,10 @@ app.use(cors({
 }));
 app.options('*', cors()); // pre-flight for all routes
 app.use(express.json());
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
