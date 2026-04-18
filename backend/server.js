@@ -3,9 +3,6 @@ const express = require('express');
 const cors = require('cors');
 
 const usersRouter  = require('./routes/users');
-const itemsRouter  = require('./routes/items');
-const uploadRouter  = require('./routes/upload');
-const analyseRouter = require('./routes/analyse');
 const safecommuneStatusRouter = require('./routes/safecommuneStatus');
 const safecommuneSimulateRouter = require('./routes/safecommuneSimulate');
 
@@ -35,9 +32,6 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/users',  usersRouter);
-app.use('/api/items',  itemsRouter);
-app.use('/api/upload',  uploadRouter);
-app.use('/api/analyse', analyseRouter);  // Rename 'items' to your domain (e.g. 'events', 'posts')
 app.use('/api/safecommute', safecommuneStatusRouter);
 app.use('/api/safecommute', safecommuneSimulateRouter);
 

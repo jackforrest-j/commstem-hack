@@ -4,41 +4,12 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-const initialViewState = {
-  longitude: 151.22,
-  latitude: -33.88,
-  zoom: 12,
-};
+const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
-const STATE_STYLES = {
-  WAITING: { background: 'var(--accent)', color: '#fff' },
-  ON_BUS:  { background: 'var(--accent-hot)', color: '#fff' },
+const STATE_COLORS = {
+  WAITING: { bg: '#85A947', label: 'Waiting at stop' },
+  ON_BUS:  { bg: '#3E7B27', label: 'On the bus' },
 };
-
-const CARD_BASE = {
-  flex: 1,
-  background: 'var(--bg-surface)',
-  border: '1px solid var(--border)',
-  padding: '16px',
-};
-
-const LABEL_STYLE = {
-  fontSize: 10,
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--text-muted)',
-  letterSpacing: '0.12em',
-  textTransform: 'uppercase',
-  marginBottom: 10,
-};
-
-function InfoCard({ label, children }) {
-  return (
-    <div style={CARD_BASE}>
-      <div style={LABEL_STYLE}>{label}</div>
-      {children}
-    </div>
-  );
-}
 
 export default function SafeCommuteDashboard() {
   const [phase, setPhase]   = useState('WAITING');
@@ -48,7 +19,6 @@ export default function SafeCommuteDashboard() {
   useEffect(() => {
     setStatus(null);
     lastJson.current = null;
-
     const poll = async () => {
       try {
         const res  = await fetch(`/api/safecommute/status?phase=${phase}`);
@@ -58,143 +28,122 @@ export default function SafeCommuteDashboard() {
           lastJson.current = json;
           setStatus(data);
         }
-      } catch {
-        // ignore network errors during demo
-      }
+      } catch { /* ignore during demo */ }
     };
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   }, [phase]);
 
-  const state       = status?.state                      ?? phase;
-  const eta         = status?.eta_minutes                ?? '—';
-  const nearestStop = status?.nearest_stop               ?? '—';
-  const childLng    = status?.child_location?.longitude  ?? 151.215;
-  const childLat    = status?.child_location?.latitude   ?? -33.875;
-  const busLng      = status?.bus_location?.longitude    ?? 151.225;
-  const busLat      = status?.bus_location?.latitude     ?? -33.885;
+  const state   = status?.state        ?? phase;
+  const eta     = status?.eta_minutes;
+  const stop    = status?.nearest_stop ?? '—';
+  const childLng = status?.child?.lon  ?? 151.206;
+  const childLat = status?.child?.lat  ?? -33.883;
+  const busLng   = status?.vehicle?.lon ?? 151.215;
+  const busLat   = status?.vehicle?.lat ?? -33.876;
 
-  const badgeStyle = STATE_STYLES[state] ?? STATE_STYLES.WAITING;
+  const stateInfo = STATE_COLORS[state] ?? STATE_COLORS.WAITING;
 
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
 
+      {/* Map */}
+      {MAPBOX_TOKEN ? (
+        <Map
+          mapboxAccessToken={MAPBOX_TOKEN}
+          initialViewState={INITIAL_VIEW}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle="mapbox://styles/mapbox/streets-v12"
+        >
+          <Marker longitude={childLng} latitude={childLat} anchor="center">
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%',
+              background: '#2563eb', border: '3px solid #fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            }} />
+          </Marker>
+          <Marker longitude={busLng} latitude={busLat} anchor="center">
+            <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🚌</div>
+          </Marker>
+        </Map>
+      ) : (
+        <div style={{ width: '100%', height: '100%', background: '#e8f0e8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 14 }}>
+          Set VITE_MAPBOX_TOKEN to see map
+        </div>
+      )}
+
+      {/* Top header overlay */}
       <div style={{
-        background: 'var(--bg-surface)',
-        borderBottom: '1px solid var(--border)',
-        padding: '16px 24px',
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+        padding: '48px 20px 32px',
+        background: 'linear-gradient(to bottom, rgba(18,53,36,0.9) 0%, transparent 100%)',
       }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+        <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
           SafeCommute
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2', letterSpacing: '-0.01em' }}>
           Alex's Journey
         </div>
       </div>
 
-      <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Bottom card */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
+        background: 'var(--bg-surface)',
+        borderRadius: '20px 20px 0 0',
+        padding: '20px 20px 36px',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
+      }}>
+        {/* Drag handle */}
+        <div style={{ width: 36, height: 4, background: 'var(--border-strong)', borderRadius: 2, margin: '0 auto 20px' }} />
 
-        <div style={{ display: 'flex', gap: 16 }}>
-          <InfoCard label="State">
-            <span style={{
-              ...badgeStyle,
-              display: 'inline-block',
-              padding: '4px 12px',
-              fontSize: 12,
-              fontWeight: 700,
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.1em',
-              borderRadius: 4,
-            }}>
-              {state}
-            </span>
-          </InfoCard>
-
-          <InfoCard label="ETA">
-            <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
-              {eta === '—' ? '—' : `${eta} min`}
-            </div>
-          </InfoCard>
-
-          <InfoCard label="Nearest Stop">
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-              {nearestStop}
-            </div>
-          </InfoCard>
-        </div>
-
+        {/* State badge */}
         <div style={{
-          height: 420,
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-          position: 'relative',
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: stateInfo.bg, borderRadius: 8,
+          padding: '10px 16px', marginBottom: 20,
         }}>
-          {MAPBOX_TOKEN ? (
-            <Map
-              mapboxAccessToken={MAPBOX_TOKEN}
-              initialViewState={initialViewState}
-              style={{ width: '100%', height: '100%' }}
-              mapStyle="mapbox://styles/mapbox/streets-v12"
-            >
-              <Marker longitude={childLng} latitude={childLat} anchor="center">
-                <div style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  background: '#2563eb',
-                  border: '2px solid #fff',
-                }} />
-              </Marker>
-
-              <Marker longitude={busLng} latitude={busLat} anchor="center">
-                <div style={{ fontSize: 22, lineHeight: 1 }}>
-                  🚌
-                </div>
-              </Marker>
-            </Map>
-          ) : (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              background: 'var(--bg-surface)',
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 13,
-            }}>
-              Set VITE_MAPBOX_TOKEN to see map
-            </div>
-          )}
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.7)' }} />
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>
+            {stateInfo.label}
+          </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-            Demo phase:
-          </span>
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+          <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>ETA</div>
+            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
+              {eta != null ? `${eta}` : '—'}
+            </div>
+            {eta != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>minutes</div>}
+          </div>
+          <div style={{ flex: 2, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Next Stop</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{stop}</div>
+          </div>
+        </div>
+
+        {/* Demo toggle */}
+        <div style={{ display: 'flex', gap: 8 }}>
           {['WAITING', 'ON_BUS'].map(p => (
             <button
               key={p}
               onClick={() => setPhase(p)}
               style={{
-                padding: '7px 16px',
-                fontSize: 11,
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 600,
-                letterSpacing: '0.1em',
-                cursor: 'pointer',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                background: phase === p ? 'var(--accent)' : 'var(--bg-surface)',
+                flex: 1, padding: '12px',
+                fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.08em',
+                cursor: 'pointer', border: 'none', borderRadius: 8,
+                background: phase === p ? 'var(--accent-hot)' : 'var(--bg-elevated)',
                 color: phase === p ? '#fff' : 'var(--text-secondary)',
+                transition: 'all 150ms',
               }}
             >
-              {p}
+              {p.replace('_', ' ')}
             </button>
           ))}
         </div>
-
       </div>
     </div>
   );

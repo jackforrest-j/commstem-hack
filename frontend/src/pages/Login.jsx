@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -25,7 +25,7 @@ export default function Login() {
     if (error) {
       setError(error.message);
     } else {
-      navigate('/dashboard');
+      navigate('/safecommute');
     }
   };
 
@@ -91,7 +91,7 @@ export default function Login() {
             color: 'var(--text-primary)',
             letterSpacing: '-0.02em',
           }}>
-            DS×CS
+            SafeCommute
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -101,7 +101,7 @@ export default function Login() {
             textTransform: 'uppercase',
             marginTop: 4,
           }}>
-            Intelligence Platform
+            Journey Tracker
           </div>
         </div>
 
@@ -127,7 +127,7 @@ export default function Login() {
             color: 'var(--text-muted)',
             marginBottom: 24,
           }}>
-            {mode === 'signin' ? 'Sign in to your workspace' : 'Join the DS×CS platform'}
+            {mode === 'signin' ? 'Sign in to your account' : 'Create your SafeCommute account'}
           </p>
 
           <form onSubmit={handleSubmit}>
@@ -220,9 +220,6 @@ export default function Login() {
           </p>
         </div>
 
-        <p style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-dim)' }}>
-          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>← Back to home</Link>
-        </p>
       </div>
     </div>
   );
