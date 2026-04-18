@@ -6,7 +6,14 @@
       "mcp__claude_ai_Supabase__get_logs",
       "mcp__claude_ai_Supabase__apply_migration",
       "mcp__claude_ai_Supabase__execute_sql",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(npm run *)",
+      "mcp__claude_ai_Figma__generate_diagram",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh pr *)"
     ]
   }
 }
