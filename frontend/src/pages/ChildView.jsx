@@ -58,7 +58,10 @@ export default function ChildView() {
         </div>
 
         {error && (
-          <div style={{ color: '#f87171', fontSize: 13, marginBottom: 20 }}>{error}</div>
+          <div style={{ color: '#f87171', fontSize: 13, marginBottom: 20 }}>
+            {error}
+            <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>API: {API_BASE || '(empty)'}</div>
+          </div>
         )}
 
         {coords && (
