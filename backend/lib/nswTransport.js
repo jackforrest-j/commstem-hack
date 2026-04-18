@@ -5,16 +5,17 @@ function nswHeaders() {
   return { Authorization: `apikey ${NSW_API_KEY}` };
 }
 
-function sydneyNow() {
-  return new Date(new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }));
-}
-
-function formatDate(d) {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatTime(d) {
-  return `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+function sydneyDateTime() {
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t)?.value || '';
+  return {
+    date: `${get('year')}${get('month')}${get('day')}`,
+    time: `${get('hour').replace('24', '00')}${get('minute')}`,
+  };
 }
 
 function pickTime(planned, estimated) {
@@ -70,14 +71,14 @@ async function nearbyStops(lat, lon) {
 
 // Plan trip between two stop IDs
 async function planTrip(originId, destinationId) {
-  const now = sydneyNow();
+  const { date, time } = sydneyDateTime();
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
     TfNSWTR: 'true',
     coordOutputFormat: 'EPSG:4326',
     depArrMacro: 'dep',
-    itdDate: formatDate(now),
-    itdTime: formatTime(now),
+    itdDate: date,
+    itdTime: time,
     type_origin: 'stop',
     name_origin: originId,
     type_destination: 'stop',
@@ -90,14 +91,14 @@ async function planTrip(originId, destinationId) {
 
 // Plan trip from a GPS coordinate to a destination stop ID
 async function planTripFromCoord(lat, lon, destinationId) {
-  const now = sydneyNow();
+  const { date, time } = sydneyDateTime();
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
     TfNSWTR: 'true',
     coordOutputFormat: 'EPSG:4326',
     depArrMacro: 'dep',
-    itdDate: formatDate(now),
-    itdTime: formatTime(now),
+    itdDate: date,
+    itdTime: time,
     type_origin: 'coord',
     name_origin: `${lon}:${lat}:EPSG:4326`,
     type_destination: 'stop',
