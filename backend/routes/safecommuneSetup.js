@@ -1,7 +1,19 @@
 const express = require('express');
 const router  = express.Router();
-const { searchStops, planTrip } = require('../lib/nswTransport');
+const { searchStops, nearbyStops, planTrip } = require('../lib/nswTransport');
 const store = require('../lib/journeyStore');
+
+// Nearest stops to GPS coordinates
+router.get('/stops/nearby', async (req, res) => {
+  const { lat, lon } = req.query;
+  if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
+  try {
+    const stops = await nearbyStops(parseFloat(lat), parseFloat(lon));
+    res.json(stops);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // Stop autocomplete
 router.get('/stops', async (req, res) => {

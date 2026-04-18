@@ -24,6 +24,25 @@ async function searchStops(query) {
   }));
 }
 
+async function nearbyStops(lat, lon) {
+  // NSW stop_finder accepts coord type: name_sf = lon:lat:EPSG:4326
+  const params = new URLSearchParams({
+    outputFormat: 'rapidJSON',
+    type_sf: 'coord',
+    name_sf: `${lon}:${lat}:EPSG:4326`,
+    coordOutputFormat: 'EPSG:4326',
+    anyObjFilter_sf: '2',
+    SpEncId: '0',
+  });
+  const res = await fetch(`${BASE}/v1/tp/stop_finder?${params}`, { headers: nswHeaders() });
+  const data = await res.json();
+  return (data.locations || []).slice(0, 3).map(loc => ({
+    id: loc.id,
+    name: loc.disassembledName || loc.name,
+    type: loc.type,
+  }));
+}
+
 async function planTrip(originId, destinationId) {
   const now = new Date(new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }));
   const date = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -118,4 +137,4 @@ async function findVehicle(tripCode, routeId) {
   return null;
 }
 
-module.exports = { searchStops, planTrip, findVehicle };
+module.exports = { searchStops, nearbyStops, planTrip, findVehicle };

@@ -82,11 +82,31 @@ function StopInput({ label, value, onSelect }) {
 
 export default function RouteSetup() {
   const navigate = useNavigate();
-  const [origin, setOrigin]     = useState(null);
-  const [dest, setDest]         = useState(null);
-  const [trips, setTrips]       = useState([]);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [origin, setOrigin]         = useState(null);
+  const [dest, setDest]             = useState(null);
+  const [trips, setTrips]           = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [locating, setLocating]     = useState(false);
+  const [error, setError]           = useState('');
+
+  // Auto-detect current location on mount
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        try {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          const res   = await fetch(`${API_BASE}/api/safecommute/stops/nearby?lat=${lat}&lon=${lon}`);
+          const stops = await res.json();
+          if (stops[0]) setOrigin(stops[0]);
+        } catch { /* ignore */ }
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  }, []);
 
   const findTrips = async () => {
     if (!origin || !dest) { setError('Select both stops first'); return; }
@@ -128,6 +148,11 @@ export default function RouteSetup() {
 
       <div style={{ padding: '24px 20px' }}>
 
+        {locating && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>📍</span> Detecting your location…
+          </div>
+        )}
         <StopInput label="From" value={origin} onSelect={setOrigin} />
         <StopInput label="To"   value={dest}   onSelect={setDest} />
 
