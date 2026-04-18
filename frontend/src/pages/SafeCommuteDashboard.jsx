@@ -3,6 +3,88 @@ import { useNavigate } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+function DestinationSender({ apiBase }) {
+  const [query, setQuery]     = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen]       = useState(false);
+  const [sent, setSent]       = useState(null);
+  const timer = useRef(null);
+
+  const onChange = (e) => {
+    const q = e.target.value;
+    setQuery(q);
+    setSent(null);
+    clearTimeout(timer.current);
+    if (q.length < 2) { setResults([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/safecommute/stops?q=${encodeURIComponent(q)}`);
+        setResults(await res.json());
+        setOpen(true);
+      } catch { /* ignore */ }
+    }, 300);
+  };
+
+  const send = async (stop) => {
+    setQuery(stop.name);
+    setOpen(false);
+    await fetch(`${apiBase}/api/safecommute/set-destination`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: stop.id, name: stop.name }),
+    });
+    setSent(stop.name);
+  };
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+        Send destination to child
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input
+          value={query}
+          onChange={onChange}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Search destination stop…"
+          style={{
+            width: '100%', padding: '12px 14px', fontSize: 14,
+            border: '1.5px solid var(--border)', borderRadius: 10,
+            background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+            fontFamily: 'var(--font-ui)', outline: 'none', boxSizing: 'border-box',
+          }}
+          onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+          onBlurCapture={e => e.target.style.borderColor = 'var(--border)'}
+        />
+        {open && results.length > 0 && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 100,
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 10, marginBottom: 4, overflow: 'hidden',
+            boxShadow: '0 -8px 24px rgba(0,0,0,0.12)',
+          }}>
+            {results.map(s => (
+              <div key={s.id}
+                onMouseDown={() => send(s)}
+                style={{ padding: '12px 14px', cursor: 'pointer', fontSize: 14, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {s.name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {sent && (
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--accent-hot)', fontWeight: 600 }}>
+          ✓ Sent "{sent}" to child's device
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_BASE     = import.meta.env.VITE_API_URL || '';
 
@@ -207,6 +289,8 @@ export default function SafeCommuteDashboard() {
             ))}
           </div>
         )}
+
+        <DestinationSender apiBase={API_BASE} />
       </div>
     </div>
   );

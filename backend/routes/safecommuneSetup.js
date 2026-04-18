@@ -2,6 +2,9 @@ const express = require('express');
 const router  = express.Router();
 const { searchStops, nearbyStops, planTrip } = require('../lib/nswTransport');
 const store = require('../lib/journeyStore');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Nearest stops to GPS coordinates
 router.get('/stops/nearby', async (req, res) => {
@@ -50,6 +53,19 @@ router.post('/journey', (req, res) => {
 // Get active journey
 router.get('/journey', (req, res) => {
   res.json(store.getJourney() || null);
+});
+
+// Parent sends destination to child's device via Supabase
+router.post('/set-destination', async (req, res) => {
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'id and name required' });
+  await supabase.from('safecommute_state').upsert({
+    id: 'current',
+    pending_destination_id: id,
+    pending_destination_name: name,
+    updated_at: new Date().toISOString(),
+  });
+  res.json({ ok: true });
 });
 
 // Receive child GPS from device

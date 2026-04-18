@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
 import SafeCommuteDashboard from './pages/SafeCommuteDashboard';
 import RouteSetup from './pages/RouteSetup';
+import ChildView from './pages/ChildView';
 
 function AppRoutes() {
   return (
@@ -11,6 +12,7 @@ function AppRoutes() {
       <Route path="/login"       element={<Login />} />
       <Route path="/safecommute" element={<SafeCommuteDashboard />} />
       <Route path="/setup"       element={<RouteSetup />} />
+      <Route path="/child"       element={<ChildView />} />
     </Routes>
   );
 }
