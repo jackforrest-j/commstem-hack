@@ -30,6 +30,21 @@ router.get('/stops', async (req, res) => {
   }
 });
 
+// Debug: raw NSW stop_finder response
+router.get('/debug/stops-raw', async (req, res) => {
+  const q = (req.query.q || 'Central').trim();
+  const NSW_API_KEY = process.env.NSW_API_KEY;
+  const params = new URLSearchParams({
+    outputFormat: 'rapidJSON', TfNSWSF: 'true', type_sf: 'any',
+    name_sf: q, coordOutputFormat: 'EPSG:4326', anyObjFilter_sf: '2', odvSugMacro: '1',
+  });
+  const r = await fetch(`https://api.transport.nsw.gov.au/v1/tp/stop_finder?${params}`, {
+    headers: { Authorization: `apikey ${NSW_API_KEY}` },
+  });
+  const data = await r.json();
+  res.json({ httpStatus: r.status, locationCount: data.locations?.length, sample: data.locations?.slice(0, 3), topKeys: Object.keys(data) });
+});
+
 // Plan trips between two stops
 router.get('/trips', async (req, res) => {
   const { from, to } = req.query;
