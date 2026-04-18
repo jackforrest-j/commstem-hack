@@ -3,8 +3,9 @@ const express = require('express');
 const cors = require('cors');
 
 const usersRouter  = require('./routes/users');
-const safecommuneStatusRouter = require('./routes/safecommuneStatus');
+const safecommuneStatusRouter   = require('./routes/safecommuneStatus');
 const safecommuneSimulateRouter = require('./routes/safecommuneSimulate');
+const safecommuneSetupRouter    = require('./routes/safecommuneSetup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,6 +33,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/users',  usersRouter);
+app.use('/api/safecommute', safecommuneSetupRouter);
 app.use('/api/safecommute', safecommuneStatusRouter);
 app.use('/api/safecommute', safecommuneSimulateRouter);
 

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE     = import.meta.env.VITE_API_URL || '';
 
 const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
@@ -13,38 +14,68 @@ const STATE_COLORS = {
 };
 
 export default function SafeCommuteDashboard() {
-  const [phase, setPhase]   = useState('WAITING');
-  const [status, setStatus] = useState(null);
-  const lastJson = useRef(null);
+  const navigate = useNavigate();
+  const [phase, setPhase]       = useState('WAITING');
+  const [status, setStatus]     = useState(null);
+  const [sharing, setSharing]   = useState(false);
+  const [isLive, setIsLive]     = useState(false);
+  const lastJson  = useRef(null);
+  const watchRef  = useRef(null);
 
+  // Poll status
   useEffect(() => {
     setStatus(null);
     lastJson.current = null;
     const poll = async () => {
       try {
-        const res  = await fetch(`${API_BASE}/api/safecommute/status?phase=${phase}`);
+        const url = isLive
+          ? `${API_BASE}/api/safecommute/status`
+          : `${API_BASE}/api/safecommute/status?phase=${phase}`;
+        const res  = await fetch(url);
         const data = await res.json();
         const json = JSON.stringify(data);
-        if (json !== lastJson.current) {
-          lastJson.current = json;
-          setStatus(data);
-        }
-      } catch { /* ignore during demo */ }
+        if (json !== lastJson.current) { lastJson.current = json; setStatus(data); }
+      } catch { /* ignore */ }
     };
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
-  }, [phase]);
+  }, [phase, isLive]);
 
-  const state   = status?.state        ?? phase;
-  const eta     = status?.eta_minutes;
-  const stop    = status?.nearest_stop ?? '—';
-  const childLng = status?.child?.lon  ?? 151.206;
-  const childLat = status?.child?.lat  ?? -33.883;
-  const busLng   = status?.vehicle?.lon ?? 151.215;
-  const busLat   = status?.vehicle?.lat ?? -33.876;
+  // GPS sharing (child's device)
+  const toggleSharing = () => {
+    if (sharing) {
+      navigator.geolocation.clearWatch(watchRef.current);
+      setSharing(false);
+      return;
+    }
+    watchRef.current = navigator.geolocation.watchPosition(
+      pos => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        fetch(`${API_BASE}/api/safecommute/child-location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lon }),
+        });
+      },
+      err => console.warn('GPS error', err),
+      { enableHighAccuracy: true, maximumAge: 5000 },
+    );
+    setSharing(true);
+  };
 
-  const stateInfo = STATE_COLORS[state] ?? STATE_COLORS.WAITING;
+  const state       = status?.state        ?? phase;
+  const eta         = status?.eta_minutes;
+  const stop        = status?.nearest_stop ?? '—';
+  const line        = status?.line;
+  const childLng    = status?.child?.lon   ?? 151.206;
+  const childLat    = status?.child?.lat   ?? -33.883;
+  const busLng      = status?.vehicle?.lon ?? 151.215;
+  const busLat      = status?.vehicle?.lat ?? -33.876;
+  const hasVehicle  = !!status?.vehicle;
+  const stateInfo   = STATE_COLORS[state] ?? STATE_COLORS.WAITING;
+
+  const liveMode = status?.mode === 'live';
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
@@ -57,16 +88,20 @@ export default function SafeCommuteDashboard() {
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/streets-v12"
         >
-          <Marker longitude={childLng} latitude={childLat} anchor="center">
-            <div style={{
-              width: 16, height: 16, borderRadius: '50%',
-              background: '#2563eb', border: '3px solid #fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            }} />
-          </Marker>
-          <Marker longitude={busLng} latitude={busLat} anchor="center">
-            <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🚌</div>
-          </Marker>
+          {status?.child && (
+            <Marker longitude={childLng} latitude={childLat} anchor="center">
+              <div style={{
+                width: 16, height: 16, borderRadius: '50%',
+                background: '#2563eb', border: '3px solid #fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              }} />
+            </Marker>
+          )}
+          {hasVehicle && (
+            <Marker longitude={busLng} latitude={busLat} anchor="center">
+              <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🚌</div>
+            </Marker>
+          )}
         </Map>
       ) : (
         <div style={{ width: '100%', height: '100%', background: '#e8f0e8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 14 }}>
@@ -74,45 +109,71 @@ export default function SafeCommuteDashboard() {
         </div>
       )}
 
-      {/* Top header overlay */}
+      {/* Top header */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
         padding: '48px 20px 32px',
         background: 'linear-gradient(to bottom, rgba(18,53,36,0.9) 0%, transparent 100%)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
       }}>
-        <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-          SafeCommute
+        <div>
+          <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
+            SafeCommute {liveMode && '· Live'}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2', letterSpacing: '-0.01em' }}>
+            Alex's Journey
+          </div>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2', letterSpacing: '-0.01em' }}>
-          Alex's Journey
-        </div>
+        <button
+          onClick={() => navigate('/setup')}
+          style={{
+            marginTop: 4, padding: '8px 14px', fontSize: 12, fontWeight: 600,
+            background: 'rgba(239,227,194,0.15)', color: '#EFE3C2',
+            border: '1px solid rgba(239,227,194,0.3)', borderRadius: 8, cursor: 'pointer',
+          }}
+        >
+          Change route
+        </button>
       </div>
 
       {/* Bottom card */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
-        background: 'var(--bg-surface)',
-        borderRadius: '20px 20px 0 0',
+        background: 'var(--bg-surface)', borderRadius: '20px 20px 0 0',
         padding: '20px 20px 36px',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
       }}>
-        {/* Drag handle */}
         <div style={{ width: 36, height: 4, background: 'var(--border-strong)', borderRadius: 2, margin: '0 auto 20px' }} />
 
         {/* State badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: stateInfo.bg, borderRadius: 8,
-          padding: '10px 16px', marginBottom: 20,
-        }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.7)' }} />
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>
-            {stateInfo.label}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: stateInfo.bg, borderRadius: 8, padding: '10px 16px',
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.7)' }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>
+              {stateInfo.label}
+              {line ? ` · ${line}` : ''}
+            </span>
+          </div>
+
+          {/* GPS share button */}
+          <button
+            onClick={toggleSharing}
+            style={{
+              padding: '10px 14px', fontSize: 12, fontWeight: 600,
+              background: sharing ? 'var(--accent-hot)' : 'var(--bg-elevated)',
+              color: sharing ? '#fff' : 'var(--text-secondary)',
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+            }}
+          >
+            {sharing ? '📍 Sharing' : '📍 Share GPS'}
+          </button>
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: liveMode ? 0 : 24 }}>
           <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
             <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>ETA</div>
             <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
@@ -126,25 +187,26 @@ export default function SafeCommuteDashboard() {
           </div>
         </div>
 
-        {/* Demo toggle */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['WAITING', 'ON_BUS'].map(p => (
-            <button
-              key={p}
-              onClick={() => setPhase(p)}
-              style={{
-                flex: 1, padding: '12px',
-                fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.08em',
-                cursor: 'pointer', border: 'none', borderRadius: 8,
-                background: phase === p ? 'var(--accent-hot)' : 'var(--bg-elevated)',
-                color: phase === p ? '#fff' : 'var(--text-secondary)',
-                transition: 'all 150ms',
-              }}
-            >
-              {p.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
+        {/* Demo phase toggle — only in demo mode */}
+        {!liveMode && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 0 }}>
+            {['WAITING', 'ON_BUS'].map(p => (
+              <button
+                key={p}
+                onClick={() => { setPhase(p); setIsLive(false); }}
+                style={{
+                  flex: 1, padding: '12px',
+                  fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.08em',
+                  cursor: 'pointer', border: 'none', borderRadius: 8,
+                  background: phase === p ? 'var(--accent-hot)' : 'var(--bg-elevated)',
+                  color: phase === p ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
+                {p.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
