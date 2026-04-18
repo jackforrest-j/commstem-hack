@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { getBusPosition, getChildPosition, ROUTE_STOPS, LOOP_SECONDS } = require('../lib/mockTransport');
 const { getJourneyState } = require('../lib/journeyEngine');
-const { findVehicle }     = require('../lib/nswTransport');
+const { getDepartures }   = require('../lib/nswTransport');
 const store               = require('../lib/journeyStore');
 
 router.get('/status', async (req, res) => {
@@ -12,34 +12,36 @@ router.get('/status', async (req, res) => {
   // ── Real mode: active journey set ────────────────────────────────────────
   if (journey) {
     const activeLeg = journey.legs.find(l => l.tripCode || l.routeId);
-    let vehicle = null;
-    if (activeLeg) {
-      vehicle = await findVehicle(activeLeg.tripCode, activeLeg.routeId);
-    }
-
     const child = storedChild || null;
     const arrives = journey.arrives ? new Date(journey.arrives) : null;
     const eta_minutes = arrives ? Math.max(0, Math.round((arrives - Date.now()) / 60000)) : null;
 
-    let state = 'WAITING';
-    let nearest_stop = activeLeg?.from || '—';
-    if (child && vehicle) {
-      const result = getJourneyState(child, vehicle, ROUTE_STOPS);
-      state        = result.state;
-      nearest_stop = result.nearest_stop;
-    } else if (!child) {
-      state = 'WAITING';
+    // Use departure_mon to get real-time next departure from origin stop
+    let nextDeparture = null;
+    if (activeLeg?.routeId) {
+      try {
+        const stopId = journey.legs[0]?.from;
+        if (stopId) {
+          const departures = await getDepartures(stopId);
+          nextDeparture = departures.find(d => d.tripCode === activeLeg.tripCode) || departures[0] || null;
+        }
+      } catch { /* non-fatal */ }
     }
+
+    let state = child ? 'ON_BUS' : 'WAITING';
+    const nearest_stop = activeLeg?.from || '—';
 
     return res.json({
       state,
       child:    child ? { lat: child.lat, lon: child.lon } : null,
-      vehicle:  vehicle ? { lat: vehicle.lat, lon: vehicle.lon, speed: vehicle.speed } : null,
+      vehicle:  null,
       eta_minutes,
       nearest_stop,
-      line:      activeLeg?.line,
-      timestamp: new Date().toISOString(),
-      mode:      'live',
+      line:        activeLeg?.line,
+      nextDeparts: nextDeparture?.departs || null,
+      isRealTime:  nextDeparture?.isRealTime || false,
+      timestamp:   new Date().toISOString(),
+      mode:        'live',
     });
   }
 

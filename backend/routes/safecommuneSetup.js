@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { searchStops, nearbyStops, planTrip } = require('../lib/nswTransport');
+const { searchStops, nearbyStops, planTrip, planTripFromCoord, getDepartures } = require('../lib/nswTransport');
 const store = require('../lib/journeyStore');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -37,6 +37,30 @@ router.get('/trips', async (req, res) => {
   try {
     const trips = await planTrip(from, to);
     res.json(trips);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Plan trips from GPS coordinates to a destination stop
+router.get('/trips/from-coord', async (req, res) => {
+  const { lat, lon, to } = req.query;
+  if (!lat || !lon || !to) return res.status(400).json({ error: 'lat, lon and to required' });
+  try {
+    const trips = await planTripFromCoord(parseFloat(lat), parseFloat(lon), to);
+    res.json(trips);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Live departures from a stop (replaces GTFS-RT)
+router.get('/departures', async (req, res) => {
+  const { stop } = req.query;
+  if (!stop) return res.status(400).json({ error: 'stop required' });
+  try {
+    const departures = await getDepartures(stop);
+    res.json(departures);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
