@@ -60,7 +60,11 @@ router.get('/debug/trip-raw', async (req, res) => {
   const params = new URLSearchParams({ outputFormat: 'rapidJSON', TfNSWTR: 'true', coordOutputFormat: 'EPSG:4326', depArrMacro: 'dep', itdDate: date, itdTime: time, type_origin: 'stop', name_origin: from, type_destination: 'stop', name_destination: to, calcNumberOfTrips: '3' });
   const r = await fetch(`https://api.transport.nsw.gov.au/v1/tp/trip?${params}`, { headers: { Authorization: `apikey ${NSW_API_KEY}` } });
   const data = await r.json();
-  res.json({ httpStatus: r.status, topKeys: Object.keys(data), journeyCount: data.journeys?.length, error: data.error, firstJourneyLegCount: data.journeys?.[0]?.legs?.length, firstLegSample: data.journeys?.[0]?.legs?.[0] });
+  // Also try without TfNSWTR to see if that's the blocker
+  const params2 = new URLSearchParams({ outputFormat: 'rapidJSON', coordOutputFormat: 'EPSG:4326', depArrMacro: 'dep', itdDate: date, itdTime: time, type_origin: 'stop', name_origin: from, type_destination: 'stop', name_destination: to, calcNumberOfTrips: '3' });
+  const r2 = await fetch(`https://api.transport.nsw.gov.au/v1/tp/trip?${params2}`, { headers: { Authorization: `apikey ${NSW_API_KEY}` } });
+  const data2 = await r2.json();
+  res.json({ withTfNSWTR: { keys: Object.keys(data), journeys: data.journeys?.length, systemMessages: data.systemMessages }, withoutTfNSWTR: { keys: Object.keys(data2), journeys: data2.journeys?.length, systemMessages: data2.systemMessages }, date, time });
 });
 
 // Plan trips between two stops
