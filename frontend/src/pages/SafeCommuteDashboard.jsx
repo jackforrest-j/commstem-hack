@@ -3,6 +3,7 @@ import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
@@ -21,7 +22,7 @@ export default function SafeCommuteDashboard() {
     lastJson.current = null;
     const poll = async () => {
       try {
-        const res  = await fetch(`/api/safecommute/status?phase=${phase}`);
+        const res  = await fetch(`${API_BASE}/api/safecommute/status?phase=${phase}`);
         const data = await res.json();
         const json = JSON.stringify(data);
         if (json !== lastJson.current) {
