@@ -6,6 +6,7 @@ import StatusBar from './components/StatusBar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import SafeCommuteDashboard from './pages/SafeCommuteDashboard';
 
 function DashboardLayout({ children }) {
   return (
@@ -44,6 +45,7 @@ function AppRoutes() {
             : <PublicLayout><Login /></PublicLayout>
         }
       />
+      <Route path="/safecommute" element={<DashboardLayout><SafeCommuteDashboard /></DashboardLayout>} />
     </Routes>
   );
 }
