@@ -49,6 +49,20 @@ router.get('/debug/stops-raw', async (req, res) => {
   });
 });
 
+// Debug: raw NSW trip response
+router.get('/debug/trip-raw', async (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: 'from and to required' });
+  const NSW_API_KEY = process.env.NSW_API_KEY;
+  const now = new Date(new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }));
+  const date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const time = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+  const params = new URLSearchParams({ outputFormat: 'rapidJSON', TfNSWTR: 'true', coordOutputFormat: 'EPSG:4326', depArrMacro: 'dep', itdDate: date, itdTime: time, type_origin: 'stop', name_origin: from, type_destination: 'stop', name_destination: to, calcNumberOfTrips: '3' });
+  const r = await fetch(`https://api.transport.nsw.gov.au/v1/tp/trip?${params}`, { headers: { Authorization: `apikey ${NSW_API_KEY}` } });
+  const data = await r.json();
+  res.json({ httpStatus: r.status, topKeys: Object.keys(data), journeyCount: data.journeys?.length, error: data.error, firstJourneyLegCount: data.journeys?.[0]?.legs?.length, firstLegSample: data.journeys?.[0]?.legs?.[0] });
+});
+
 // Plan trips between two stops
 router.get('/trips', async (req, res) => {
   const { from, to } = req.query;
