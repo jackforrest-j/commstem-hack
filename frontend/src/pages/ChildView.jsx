@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import Map, { Marker } from 'react-map-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -133,92 +137,145 @@ export default function ChildView() {
     setBoardedState('ON_BUS');
   };
 
-  // ── Journey confirmed: walk + countdown screen ──────────────────────────
+  // ── Journey confirmed: fullscreen map ────────────────────────────────────
   if (journey) {
-    const leg       = journey.legs[0];
-    const stopCoord = leg?.fromCoord;  // [lat, lon] from NSW API
-    const loc       = coordsRef.current || coords;
+    const leg        = journey.legs[0];
+    const originCoord = leg?.fromCoord;   // [lat, lon]
+    const destCoord   = destination?.coord; // [lat, lon]
+    const loc         = coords;
+    const isBoarded   = boardedState === 'ON_BUS';
+    const depPast     = depSecs !== null && depSecs <= 0;
+
+    // Walk directions
     let distM = null, walkMins = null, dir = null;
-    if (loc && stopCoord) {
-      const [sLat, sLon] = stopCoord;
+    if (loc && originCoord) {
+      const [sLat, sLon] = originCoord;
       distM    = Math.round(haversineM(loc.lat, loc.lon, sLat, sLon));
       walkMins = Math.max(1, Math.round(distM / 80));
-      const bear = bearingTo(loc.lat, loc.lon, sLat, sLon);
-      dir = COMPASS[Math.round(bear / 45) % 8];
+      dir      = COMPASS[Math.round(bearingTo(loc.lat, loc.lon, sLat, sLon) / 45) % 8];
     }
-    const isBoarded  = boardedState === 'ON_BUS';
-    const depPast    = depSecs !== null && depSecs <= 0;
+
+    // Map center: midpoint between child and destination (or origin stop)
+    const focusLat = loc?.lat ?? (originCoord?.[0] ?? -33.878);
+    const focusLon = loc?.lon ?? (originCoord?.[1] ?? 151.215);
 
     return (
-      <div style={styles.page}>
-        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-        <div style={styles.card}>
-          {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>{isBoarded ? '🚌' : '🚶'}</div>
-            <div style={styles.heading}>{isBoarded ? "You're on the bus!" : 'Head to your stop'}</div>
-            <div style={{ ...styles.badge, fontSize: 15, marginTop: 6 }}>
-              {MODE_ICONS[leg?.mode] || '🚌'} {leg?.line} → {destination?.name}
-            </div>
+      <div style={{ position: 'fixed', inset: 0, fontFamily: 'var(--font-ui)' }}>
+        <style>{`
+          @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+          @keyframes ping{0%{transform:scale(1);opacity:0.8}100%{transform:scale(2.5);opacity:0}}
+        `}</style>
+
+        {/* Map */}
+        {MAPBOX_TOKEN ? (
+          <Map
+            mapboxAccessToken={MAPBOX_TOKEN}
+            initialViewState={{ longitude: focusLon, latitude: focusLat, zoom: 14 }}
+            style={{ width: '100%', height: '100%' }}
+            mapStyle="mapbox://styles/mapbox/streets-v12"
+          >
+            {/* Child — pulsing blue dot */}
+            {loc && (
+              <Marker longitude={loc.lon} latitude={loc.lat} anchor="center">
+                <div style={{ position: 'relative', width: 20, height: 20 }}>
+                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'ping 1.5s ease-out infinite' }} />
+                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#2563eb', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }} />
+                </div>
+              </Marker>
+            )}
+
+            {/* Origin stop — green "Board here" pin */}
+            {originCoord && (
+              <Marker longitude={originCoord[1]} latitude={originCoord[0]} anchor="bottom">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 26 }}>🚏</div>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, color: '#fff', background: '#3E7B27',
+                    borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2,
+                  }}>Board here</div>
+                </div>
+              </Marker>
+            )}
+
+            {/* Destination — accent flag */}
+            {destCoord && (
+              <Marker longitude={destCoord[1]} latitude={destCoord[0]} anchor="bottom">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 26 }}>📍</div>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, color: '#123524', background: '#85A947',
+                    borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2,
+                    maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{destination?.name?.split(',')[0]}</div>
+                </div>
+              </Marker>
+            )}
+          </Map>
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: '#e8f0e8' }} />
+        )}
+
+        {/* Bottom overlay card */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
+          background: 'var(--sidebar-bg)', borderRadius: '20px 20px 0 0',
+          padding: '16px 20px 36px', boxShadow: '0 -4px 32px rgba(0,0,0,0.3)',
+        }}>
+          <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
+
+          {/* Line + destination */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <span style={styles.badge}>{MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}</span>
+            <span style={{ fontSize: 14, color: '#EFE3C2', fontWeight: 600 }}>→ {destination?.name?.split(',')[0]}</span>
           </div>
 
-          {/* Walk to stop */}
-          {!isBoarded && distM !== null && (
-            <div style={styles.infoCard}>
-              <div style={styles.infoLabel}>WALK TO STOP</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#EFE3C2' }}>
-                {dir} · {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {/* Walk distance */}
+            {!isBoarded && distM !== null && (
+              <div style={{ ...styles.infoCard, flex: 1 }}>
+                <div style={styles.infoLabel}>WALK</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#EFE3C2' }}>{dir} {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}</div>
+                <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>~{walkMins} min</div>
               </div>
-              <div style={{ ...styles.muted, marginTop: 4 }}>~{walkMins} min walk to {leg?.from}</div>
-            </div>
-          )}
+            )}
 
-          {/* Departure countdown */}
-          <div style={{ ...styles.infoCard, marginTop: 12 }}>
-            <div style={styles.infoLabel}>{depPast ? 'DEPARTED' : 'BUS DEPARTS IN'}</div>
-            <div style={{
-              fontSize: 36, fontWeight: 800, fontFamily: 'var(--font-mono)', color: depPast ? '#f87171' : '#85A947',
-              animation: depSecs !== null && depSecs > 0 && depSecs < 60 ? 'pulse 1s infinite' : 'none',
-            }}>
-              {depPast ? 'Now / Departed' : fmtCountdown(depSecs)}
-            </div>
-            <div style={styles.muted}>
-              {new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
-              {' '}· {journey.durationMin} min journey
+            {/* Countdown */}
+            <div style={{ ...styles.infoCard, flex: 1 }}>
+              <div style={styles.infoLabel}>{depPast ? 'DEPARTED' : 'DEPARTS'}</div>
+              <div style={{
+                fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                color: depPast ? '#f87171' : '#85A947',
+                animation: depSecs !== null && depSecs > 0 && depSecs < 60 ? 'pulse 1s infinite' : 'none',
+              }}>
+                {depPast ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : fmtCountdown(depSecs)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>{journey.durationMin} min ride</div>
             </div>
           </div>
 
-          {/* Board button */}
-          {!isBoarded && (
-            <button style={{ ...styles.btn, ...styles.btnStart, marginTop: 20 }} onClick={boardBus}>
+          {/* Board / arrived button */}
+          {!isBoarded ? (
+            <button style={{ ...styles.btn, ...styles.btnStart, marginTop: 12 }} onClick={boardBus}>
               ✅ I'm on the bus
             </button>
-          )}
-
-          {isBoarded && (
-            <div style={{ ...styles.infoCard, marginTop: 12, borderColor: 'rgba(133,169,71,0.5)' }}>
-              <div style={styles.infoLabel}>ARRIVING AT</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#EFE3C2' }}>{destination?.name}</div>
-              <div style={styles.muted}>
-                {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
-              </div>
+          ) : (
+            <div style={{ ...styles.infoCard, marginTop: 12, borderColor: 'rgba(133,169,71,0.5)', textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#85A947' }}>🚌 On the way! Arriving {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</div>
             </div>
           )}
 
-          {/* GPS status */}
-          {sharing
-            ? <div style={{ ...styles.muted, marginTop: 20, fontSize: 12 }}>📍 Location sharing active</div>
-            : <button style={{ ...styles.btn, background: 'rgba(133,169,71,0.12)', color: '#85A947', marginTop: 20 }} onClick={start}>
-                📍 Share my location
-              </button>
-          }
-
-          <button
-            style={{ background: 'none', border: 'none', color: 'var(--sidebar-muted)', fontSize: 12, marginTop: 16, cursor: 'pointer' }}
-            onClick={() => { setJourney(null); setDestination(null); setTrips(null); setQuery(''); setBoardedState(null); }}
-          >
-            Change trip
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+            {!sharing
+              ? <button style={{ fontSize: 12, background: 'none', border: 'none', color: '#85A947', cursor: 'pointer' }} onClick={start}>📍 Start sharing</button>
+              : <span style={{ fontSize: 12, color: 'var(--sidebar-muted)' }}>📍 Sharing live</span>
+            }
+            <button
+              style={{ fontSize: 12, background: 'none', border: 'none', color: 'var(--sidebar-muted)', cursor: 'pointer' }}
+              onClick={() => { setJourney(null); setDestination(null); setTrips(null); setQuery(''); setBoardedState(null); }}
+            >
+              Change trip
+            </button>
+          </div>
         </div>
       </div>
     );
