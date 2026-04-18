@@ -12,10 +12,16 @@ const SECTIONS = [
     ],
   },
   {
+    label: 'Apps',
+    items: [
+      { to: '/safecommute', idx: '05', name: 'SafeCommute' },
+    ],
+  },
+  {
     label: 'System',
     items: [
-      { to: '/pipelines', idx: '05', name: 'Pipelines', disabled: true },
-      { to: '/settings',  idx: '06', name: 'Settings',  disabled: true },
+      { to: '/pipelines', idx: '06', name: 'Pipelines', disabled: true },
+      { to: '/settings',  idx: '07', name: 'Settings',  disabled: true },
     ],
   },
 ];
