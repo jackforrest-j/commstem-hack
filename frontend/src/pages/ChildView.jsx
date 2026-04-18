@@ -60,7 +60,7 @@ export default function ChildView() {
         {error && (
           <div style={{ color: '#f87171', fontSize: 13, marginBottom: 20 }}>
             {error}
-            <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>API: {API_BASE || '(empty)'}</div>
+            <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, wordBreak: 'break-all' }}>URL: {API_BASE || '(empty)'}/api/safecommute/child-location</div>
           </div>
         )}
 
