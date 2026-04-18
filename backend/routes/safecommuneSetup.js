@@ -30,19 +30,23 @@ router.get('/stops', async (req, res) => {
   }
 });
 
-// Debug: raw NSW stop_finder response
+// Debug: try multiple NSW stop_finder param combos
 router.get('/debug/stops-raw', async (req, res) => {
   const q = (req.query.q || 'Central').trim();
   const NSW_API_KEY = process.env.NSW_API_KEY;
-  const params = new URLSearchParams({
-    outputFormat: 'rapidJSON', TfNSWSF: 'true', type_sf: 'any',
-    name_sf: q, coordOutputFormat: 'EPSG:4326', anyObjFilter_sf: '2', odvSugMacro: '1',
+  const tryParams = async (extra) => {
+    const params = new URLSearchParams({ outputFormat: 'rapidJSON', coordOutputFormat: 'EPSG:4326', name_sf: q, ...extra });
+    const r = await fetch(`https://api.transport.nsw.gov.au/v1/tp/stop_finder?${params}`, { headers: { Authorization: `apikey ${NSW_API_KEY}` } });
+    const data = await r.json();
+    const locs = data.locations || [];
+    return { count: locs.length, types: [...new Set(locs.map(l => l.type))], sample: locs.slice(0, 2).map(l => ({ id: l.id, name: l.name, type: l.type })) };
+  };
+  res.json({
+    'type_sf=any':      await tryParams({ type_sf: 'any' }),
+    'type_sf=stop':     await tryParams({ type_sf: 'stop' }),
+    'type_sf=any+TfNSWSF': await tryParams({ type_sf: 'any', TfNSWSF: 'true' }),
+    'type_sf=stop+TfNSWSF': await tryParams({ type_sf: 'stop', TfNSWSF: 'true' }),
   });
-  const r = await fetch(`https://api.transport.nsw.gov.au/v1/tp/stop_finder?${params}`, {
-    headers: { Authorization: `apikey ${NSW_API_KEY}` },
-  });
-  const data = await r.json();
-  res.json({ httpStatus: r.status, locationCount: data.locations?.length, sample: data.locations?.slice(0, 3), topKeys: Object.keys(data) });
 });
 
 // Plan trips between two stops
