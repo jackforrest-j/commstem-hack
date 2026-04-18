@@ -32,23 +32,27 @@ async function nswFetch(endpoint, params) {
 }
 
 // Search stops by name — returns up to 6 results
+const TRANSIT_STOP_TYPES = new Set(['stop', 'platform', 'poi']);
+
 async function searchStops(query) {
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
     TfNSWSF: 'true',
-    type_sf: 'stop',
+    type_sf: 'any',
     name_sf: query,
     coordOutputFormat: 'EPSG:4326',
-    anyObjFilter_sf: '2',
     odvSugMacro: '1',
   });
   const data = await nswFetch('stop_finder', params);
-  return (data.locations || []).slice(0, 6).map(loc => ({
-    id: loc.id,
-    name: loc.disassembledName || loc.name,
-    type: loc.type,
-    coord: loc.coord,
-  }));
+  return (data.locations || [])
+    .filter(loc => TRANSIT_STOP_TYPES.has(loc.type) || String(loc.id).match(/^\d+$/))
+    .slice(0, 6)
+    .map(loc => ({
+      id: loc.id,
+      name: loc.disassembledName || loc.name,
+      type: loc.type,
+      coord: loc.coord,
+    }));
 }
 
 // Find nearby stops by GPS coordinate — lon:lat format required by API
