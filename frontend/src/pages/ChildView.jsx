@@ -69,8 +69,7 @@ export default function ChildView() {
   const [vehicles, setVehicles]             = useState([]);
   const [savedDests, setSavedDests]         = useState([]);
   const [loadingDest, setLoadingDest]       = useState(null); // dest id being auto-confirmed
-  const [walkRoute, setWalkRoute]           = useState(null); // GeoJSON from Mapbox Directions
-  const [walkInstruction, setWalkInstruction] = useState(null);
+  const [walkData, setWalkData]             = useState(null); // { geometry, instruction }
   const [altData, setAltData]               = useState(null); // { trips, filteredModeLabels } when mode filter blocked routes
   const [awaitingApproval, setAwaitingApproval] = useState(false);
   const [approvalDenied, setApprovalDenied] = useState(false);
@@ -149,8 +148,7 @@ export default function ChildView() {
   // Fetch road-snapped walking route from child → boarding stop (debounced 15s)
   useEffect(() => {
     if (!journey || boardedState === 'ON_BUS' || !coords || !MAPBOX_TOKEN) {
-      setWalkRoute(null);
-      setWalkInstruction(null);
+      setWalkData(null);
       return;
     }
     const leg = journey.legs[0];
@@ -165,9 +163,10 @@ export default function ChildView() {
         .then(r => r.json())
         .then(data => {
           const route = data.routes?.[0];
-          if (route?.geometry) setWalkRoute(route.geometry);
-          const instruction = route?.legs?.[0]?.steps?.[0]?.maneuver?.instruction;
-          if (instruction) setWalkInstruction(instruction);
+          setWalkData({
+            geometry: route?.geometry || null,
+            instruction: route?.legs?.[0]?.steps?.[0]?.maneuver?.instruction || null,
+          });
         })
         .catch(() => {});
     };
@@ -312,8 +311,8 @@ export default function ChildView() {
             )}
 
             {/* Road-snapped walking route: child → boarding stop */}
-            {walkRoute && !isBoarded && (
-              <Source type="geojson" data={{ type: 'Feature', geometry: walkRoute }}>
+            {walkData?.geometry && !isBoarded && (
+              <Source type="geojson" data={{ type: 'Feature', geometry: walkData.geometry }}>
                 {/* Glow underlay */}
                 <Layer
                   id="walk-route-glow"
@@ -419,9 +418,9 @@ export default function ChildView() {
                   {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>~{walkMins} min</div>
-                {walkInstruction && (
+                {walkData?.instruction && (
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 4, lineHeight: 1.4 }}>
-                    {walkInstruction}
+                    {walkData.instruction}
                   </div>
                 )}
               </div>
