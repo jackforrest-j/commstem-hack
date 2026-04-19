@@ -58,15 +58,22 @@ function routeLabel(routeId) {
   return parts[parts.length - 1] || routeId;
 }
 
-// Return up to `limit` vehicles nearest to (lat, lon) from the given mode's feed.
-// Each vehicle is tagged { id, lat, lon, label, routeId, isTarget }.
-// Target = best match for activeLeg (by boarding-stop proximity + start-time).
-async function getNearbyVehicles(lat, lon, mode, activeLeg, limit = 100) {
+// Return up to `limit` vehicles nearest to (lat, lon) from the given mode's feed,
+// filtered to only lines that appear in the active journey's legs.
+// Each vehicle: { id, lat, lon, label, routeId, isTarget }.
+async function getNearbyVehicles(lat, lon, mode, activeLeg, journeyLegs, limit = 100) {
   const feedPath = feedPathForMode(mode ?? 5);
   if (!feedPath) return [];
 
   let feed;
   try { feed = await fetchFeed(feedPath); } catch { return []; }
+
+  // Build a set of line names from all journey legs (e.g. ["T9", "370"])
+  const journeyLines = new Set(
+    (journeyLegs || [])
+      .map(l => (l.line || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
 
   const depMins = activeLeg?.departs
     ? (() => { const d = new Date(activeLeg.departs); return d.getHours() * 60 + d.getMinutes(); })()
@@ -80,12 +87,22 @@ async function getNearbyVehicles(lat, lon, mode, activeLeg, limit = 100) {
     const vp = entity.vehicle;
     if (!vp?.position) continue;
 
+    const label = routeLabel(vp.trip?.routeId);
+
+    // Filter: only keep vehicles whose label matches one of the journey lines
+    if (journeyLines.size > 0) {
+      const labelUp = label.toUpperCase();
+      const matches = [...journeyLines].some(
+        line => labelUp === line || labelUp.includes(line) || line.includes(labelUp)
+      );
+      if (!matches) continue;
+    }
+
     const vLat = vp.position.latitude;
     const vLon = vp.position.longitude;
     const dist = haversineKm(lat, lon, vLat, vLon);
-    if (dist > 5) continue; // 5 km radius
+    if (dist > 5) continue;
 
-    // Target score: lower = better match for activeLeg
     let targetScore = Infinity;
     if (stopLat != null && depMins !== null) {
       const distToStop = haversineKm(stopLat, stopLon, vLat, vLon);
@@ -101,7 +118,7 @@ async function getNearbyVehicles(lat, lon, mode, activeLeg, limit = 100) {
       id:          entity.id,
       lat:         vLat,
       lon:         vLon,
-      label:       routeLabel(vp.trip?.routeId),
+      label,
       routeId:     vp.trip?.routeId || '',
       dist,
       targetScore,
@@ -109,18 +126,15 @@ async function getNearbyVehicles(lat, lon, mode, activeLeg, limit = 100) {
     });
   }
 
-  // Closest 100 by distance
   vehicles.sort((a, b) => a.dist - b.dist);
   const closest = vehicles.slice(0, limit);
 
-  // Mark best target candidate
   let best = null;
   for (const v of closest) {
     if (v.targetScore < Infinity && (!best || v.targetScore < best.targetScore)) best = v;
   }
   if (best) best.isTarget = true;
 
-  // Strip internal scoring fields before returning
   return closest.map(({ dist, targetScore, ...v }) => v);
 }
 

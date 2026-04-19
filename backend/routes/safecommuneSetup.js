@@ -115,7 +115,9 @@ router.get('/vehicles/nearby', async (req, res) => {
   const activeLeg = journey?.legs?.find(l => l.mode != null);
   const mode      = activeLeg?.mode ?? 5;
   try {
-    const vehicles = await getNearbyVehicles(parseFloat(lat), parseFloat(lon), mode, activeLeg);
+    const vehicles = await getNearbyVehicles(
+      parseFloat(lat), parseFloat(lon), mode, activeLeg, journey?.legs ?? []
+    );
     res.json(vehicles);
   } catch (e) {
     res.status(500).json({ error: e.message });
