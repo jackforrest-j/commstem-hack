@@ -350,19 +350,40 @@ export default function ChildView() {
             </div>
           )}
 
-          {!isBoarded ? (
-            <button
-              style={{
-                width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
-                background: 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)',
-                color: '#fff', border: 'none', borderRadius: 16, cursor: 'pointer',
-                boxShadow: '0 4px 20px rgba(62,123,39,0.5)',
-                letterSpacing: '0.01em',
-              }}
-              onClick={boardBus}
-            >
-              🚌 I'm on the bus!
-            </button>
+          {!isBoarded ? (() => {
+            const atStop = distM !== null && distM <= 10;
+            const noGps  = !loc;
+            return (
+              <div>
+                <button
+                  disabled={!atStop}
+                  style={{
+                    width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                    background: atStop
+                      ? 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)'
+                      : 'rgba(255,255,255,0.07)',
+                    color: atStop ? '#fff' : 'rgba(255,255,255,0.3)',
+                    border: atStop ? 'none' : '1.5px solid rgba(255,255,255,0.1)',
+                    borderRadius: 16,
+                    cursor: atStop ? 'pointer' : 'not-allowed',
+                    boxShadow: atStop ? '0 4px 20px rgba(62,123,39,0.5)' : 'none',
+                    letterSpacing: '0.01em',
+                    transition: 'all 0.3s',
+                  }}
+                  onClick={atStop ? boardBus : undefined}
+                >
+                  🚌 I'm on the bus!
+                </button>
+                {!atStop && (
+                  <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
+                    {noGps
+                      ? '📍 Waiting for GPS…'
+                      : `${distM}m from stop — get closer to unlock`}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           ) : (
             <div style={{
               padding: '14px 16px', borderRadius: 16, textAlign: 'center',
