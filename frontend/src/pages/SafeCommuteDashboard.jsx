@@ -309,8 +309,8 @@ export default function SafeCommuteDashboard() {
               {childName ? `${childName}'s Journey` : 'Your child\'s journey'}
             </div>
             <button onClick={() => navigate('/profile')} style={{
-              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8,
-              padding: '7px 12px', fontSize: 13, color: '#EFE3C2', cursor: 'pointer',
+              background: '#1e4d2b', border: '1.5px solid #3E7B27', borderRadius: 10,
+              padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#EFE3C2', cursor: 'pointer',
             }}>⚙ Profile</button>
           </div>
         </div>
