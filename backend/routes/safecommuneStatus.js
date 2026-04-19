@@ -1,7 +1,5 @@
 const express = require('express');
 const router  = express.Router();
-const { getBusPosition, getChildPosition, ROUTE_STOPS, LOOP_SECONDS } = require('../lib/mockTransport');
-const { getJourneyState } = require('../lib/journeyEngine');
 const { getDepartures }   = require('../lib/nswTransport');
 const { getDelayForJourney } = require('../lib/gtfsRealtime');
 const store               = require('../lib/journeyStore');
@@ -67,23 +65,14 @@ router.get('/status', async (req, res) => {
     });
   }
 
-  // ── Demo mode: no journey set, use mock simulation ────────────────────────
-  const phase   = req.query.phase || 'WAITING';
-  const vehicle = getBusPosition();
-  const child   = storedChild || null;
-  const { state, nearest_stop } = getJourneyState(child, vehicle, ROUTE_STOPS);
-
-  const loopFraction   = (vehicle.segment_index + vehicle.progress) / (ROUTE_STOPS.length - 1);
-  const eta_minutes    = Math.round(((1 - loopFraction) * LOOP_SECONDS) / 60);
-
+  // ── Idle mode: no journey set, child not connected ───────────────────────
   res.json({
-    state,
-    child:    { lat: child.lat, lon: child.lon },
-    vehicle:  { lat: vehicle.lat, lon: vehicle.lon, speed: vehicle.speed },
-    eta_minutes,
-    nearest_stop,
-    timestamp: new Date().toISOString(),
-    mode:      'demo',
+    state:       'WAITING',
+    child:       storedChild ? { lat: storedChild.lat, lon: storedChild.lon } : null,
+    eta_minutes: null,
+    nearest_stop: '—',
+    timestamp:   new Date().toISOString(),
+    mode:        'idle',
   });
 });
 
