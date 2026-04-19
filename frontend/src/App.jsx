@@ -32,11 +32,11 @@ function RequireSetup({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/"               element={<Navigate to="/safecommute" replace />} />
+      <Route path="/"               element={<Navigate to="/dashboard" replace />} />
       <Route path="/login"          element={<Login />} />
       <Route path="/account-setup"  element={<AccountSetup />} />
       <Route path="/child"          element={<ChildView />} />
-      <Route path="/safecommute"    element={<RequireSetup><SafeCommuteDashboard /></RequireSetup>} />
+      <Route path="/dashboard"    element={<RequireSetup><SafeCommuteDashboard /></RequireSetup>} />
       <Route path="/setup"          element={<RequireSetup><RouteSetup /></RequireSetup>} />
       <Route path="/profile"        element={<RequireSetup><ProfileSetup /></RequireSetup>} />
     </Routes>

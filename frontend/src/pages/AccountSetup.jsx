@@ -118,7 +118,7 @@ export default function AccountSetup() {
             </div>
 
             <button
-              onClick={() => navigate('/safecommute')}
+              onClick={() => navigate('/dashboard')}
               style={{
                 width: '100%', padding: '16px', fontSize: 16, fontWeight: 700,
                 background: 'var(--accent-hot)', color: '#fff',

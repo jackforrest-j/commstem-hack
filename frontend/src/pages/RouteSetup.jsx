@@ -126,7 +126,7 @@ export default function RouteSetup() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(trip),
     });
-    navigate('/safecommute');
+    navigate('/dashboard');
   };
 
   return (
@@ -136,7 +136,7 @@ export default function RouteSetup() {
       <div style={{
         background: 'var(--sidebar-bg)', padding: '52px 20px 24px',
       }}>
-        <button onClick={() => navigate('/safecommute')} style={{
+        <button onClick={() => navigate('/dashboard')} style={{
           background: 'none', border: 'none', color: 'var(--sidebar-muted)',
           fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12,
         }}>← Back</button>

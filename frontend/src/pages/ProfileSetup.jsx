@@ -185,7 +185,7 @@ export default function ProfileSetup() {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', fontFamily: 'var(--font-ui)' }}>
         <div style={{ background: 'var(--sidebar-bg)', padding: '52px 24px 32px' }}>
-          <button onClick={() => navigate('/safecommute')} style={backBtnStyle}>
+          <button onClick={() => navigate('/dashboard')} style={backBtnStyle}>
             ← Dashboard
           </button>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#EFE3C2', marginTop: 12 }}>Profile</div>
