@@ -15,6 +15,15 @@ function allowedModeLabels(modes) {
   return modes.map(m => CLASS_LABELS[m] || 'Transit').filter(l => !seen.has(l) && seen.add(l));
 }
 
+// NSW API ignores inclMOT_X params — enforce mode restrictions ourselves
+function filterTripsByMode(trips, allowedModes) {
+  if (!allowedModes?.length) return trips;
+  const allowed = new Set(allowedModes.map(Number));
+  return trips.filter(trip =>
+    trip.legs.every(leg => leg.mode == null || allowed.has(Number(leg.mode)))
+  );
+}
+
 async function fetchChildPrefs(parentId) {
   if (!parentId) return null;
   try {
@@ -97,6 +106,7 @@ router.get('/trips', async (req, res) => {
     let trips = await planTrip(from, to, allowedModes);
     if (!trips.length) console.warn(`[trips] no results for from=${from} to=${to}`);
     if (prefs) trips = scoreAndRankTrips(trips, prefs, null, null, null);
+    if (allowedModes?.length) trips = filterTripsByMode(trips, allowedModes);
 
     // If mode-filtered and empty, retry without restriction and return alternatives
     if (!trips.length && allowedModes?.length) {
@@ -133,6 +143,7 @@ router.get('/trips/from-coord', async (req, res) => {
       const destCoord = (toLat && toLon) ? [parseFloat(toLat), parseFloat(toLon)] : null;
       trips = scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord);
     }
+    if (allowedModes?.length) trips = filterTripsByMode(trips, allowedModes);
 
     // If mode-filtered and empty, retry without restriction and return alternatives
     if (!trips.length && allowedModes?.length) {
