@@ -93,8 +93,9 @@ export default function ProfileSetup() {
   const [saved, setSaved]   = useState(false);
 
   const toggleMode = (m) => setAllowedModes(prev => {
-    const base = prev || [1, 4, 5, 7, 9];
-    return base.includes(m) ? base.filter(x => x !== m) : [...base, m];
+    const base = prev || [];
+    const next = base.includes(m) ? base.filter(x => x !== m) : [...base, m];
+    return next.length === 0 ? null : next;
   });
 
   useEffect(() => {
