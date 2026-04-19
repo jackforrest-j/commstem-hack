@@ -70,6 +70,7 @@ export default function ChildView() {
   const [savedDests, setSavedDests]         = useState([]);
   const [loadingDest, setLoadingDest]       = useState(null); // dest id being auto-confirmed
   const [walkRoute, setWalkRoute]           = useState(null); // GeoJSON from Mapbox Directions
+  const [walkInstruction, setWalkInstruction] = useState(null);
   const [altData, setAltData]               = useState(null); // { trips, filteredModeLabels } when mode filter blocked routes
   const [awaitingApproval, setAwaitingApproval] = useState(false);
   const [approvalDenied, setApprovalDenied] = useState(false);
@@ -149,6 +150,7 @@ export default function ChildView() {
   useEffect(() => {
     if (!journey || boardedState === 'ON_BUS' || !coords || !MAPBOX_TOKEN) {
       setWalkRoute(null);
+      setWalkInstruction(null);
       return;
     }
     const leg = journey.legs[0];
@@ -158,12 +160,14 @@ export default function ChildView() {
     const fetchRoute = () => {
       const [sLat, sLon] = originCoord;
       fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/walking/${coords.lon},${coords.lat};${sLon},${sLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`
+        `https://api.mapbox.com/directions/v5/mapbox/walking/${coords.lon},${coords.lat};${sLon},${sLat}?geometries=geojson&overview=full&steps=true&access_token=${MAPBOX_TOKEN}`
       )
         .then(r => r.json())
         .then(data => {
-          const geom = data.routes?.[0]?.geometry;
-          if (geom) setWalkRoute(geom);
+          const route = data.routes?.[0];
+          if (route?.geometry) setWalkRoute(route.geometry);
+          const instruction = route?.legs?.[0]?.steps?.[0]?.maneuver?.instruction;
+          if (instruction) setWalkInstruction(instruction);
         })
         .catch(() => {});
     };
@@ -412,9 +416,14 @@ export default function ChildView() {
                   Walk
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color: '#EFE3C2', lineHeight: 1 }}>
-                  {dir} {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}
+                  {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>~{walkMins} min</div>
+                {walkInstruction && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 4, lineHeight: 1.4 }}>
+                    {walkInstruction}
+                  </div>
+                )}
               </div>
             )}
           </div>
