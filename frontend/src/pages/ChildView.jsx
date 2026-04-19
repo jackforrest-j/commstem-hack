@@ -169,22 +169,43 @@ export default function ChildView() {
     setSharing(false); setCoords(null); coordsRef.current = null;
   };
 
+  // Address search via Mapbox Geocoding
   useEffect(() => {
     if (query.length < 2) { setStopResults([]); return; }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const res = await fetch(`${API_BASE}/api/safecommute/stops?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setStopResults(Array.isArray(data) ? data.filter(s => s.type === 'stop').slice(0, 5) : []);
+      if (!MAPBOX_TOKEN) return;
+      try {
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+          `?country=AU&proximity=151.2093,-33.8688&limit=5&access_token=${MAPBOX_TOKEN}`
+        );
+        const data = await res.json();
+        setStopResults(data.features || []);
+      } catch { /* ignore */ }
     }, 300);
   }, [query]);
 
-  const selectDestination = async (stop) => {
-    setDestination(stop); setQuery(stop.name); setStopResults([]); setLoadingTrips(true);
+  const selectDestination = async (place) => {
+    // place is either a Mapbox feature (has .center) or a legacy stop object (has .id)
+    const isFeature = !!place.center;
+    const dest = isFeature
+      ? { id: null, name: place.place_name, coord: [place.center[1], place.center[0]] }
+      : place;
+
+    setDestination(dest); setQuery(dest.name); setStopResults([]); setLoadingTrips(true);
     const loc = coordsRef.current;
-    const url = loc
-      ? `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}`
-      : `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}`;
+
+    let url;
+    if (loc && dest.id == null && dest.coord?.length >= 2) {
+      const [toLat, toLon] = dest.coord;
+      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}`;
+    } else if (loc) {
+      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${dest.id}`;
+    } else {
+      url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${dest.id}`;
+    }
+
     const res = await fetch(url);
     setTrips(await res.json());
     setLoadingTrips(false);
@@ -613,7 +634,7 @@ export default function ChildView() {
           <div style={{ width: '100%', marginTop: savedDests.length > 0 ? 0 : 24 }}>
             {savedDests.length > 0 && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em' }}>
-                Or search for another stop
+                Or search for another destination
               </div>
             )}
             {savedDests.length === 0 && sharing && (
@@ -626,14 +647,14 @@ export default function ChildView() {
               <input
                 value={query}
                 onChange={e => { setQuery(e.target.value); setDestination(null); setTrips(null); }}
-                placeholder="Search for a stop…"
+                placeholder="Search for an address or place…"
                 style={styles.input}
               />
               {stopResults.length > 0 && (
                 <div style={styles.dropdown}>
-                  {stopResults.map(s => (
-                    <button key={s.id} style={styles.dropdownItem} onClick={() => selectDestination(s)}>
-                      🚏 {s.name}
+                  {stopResults.map(f => (
+                    <button key={f.id} style={styles.dropdownItem} onClick={() => selectDestination(f)}>
+                      📍 {f.place_name}
                     </button>
                   ))}
                 </div>
