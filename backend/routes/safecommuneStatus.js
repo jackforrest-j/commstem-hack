@@ -10,12 +10,17 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 router.get('/status', async (req, res) => {
   const { parentId } = req.query;
   const journey      = store.getJourney(parentId);
-  const storedChild  = store.getChildLocation(parentId);
+  const raw          = store.getChildLocation(parentId);
+
+  // Child is only "live" if GPS was received within the last 90 seconds
+  const STALE_MS    = 90 * 1000;
+  const storedChild = (raw && raw.ts && (Date.now() - raw.ts) < STALE_MS) ? raw : null;
+  const childConnected = !!storedChild;
 
   // ── Real mode: active journey set ────────────────────────────────────────
   if (journey) {
     const activeLeg = journey.legs.find(l => l.tripCode || l.routeId);
-    const child = storedChild || null;
+    const child = storedChild;
     const arrives = journey.arrives ? new Date(journey.arrives) : null;
     const eta_minutes = arrives ? Math.max(0, Math.round((arrives - Date.now()) / 60000)) : null;
 
@@ -105,7 +110,7 @@ router.get('/status', async (req, res) => {
 
   res.json({
     state:        'WAITING',
-    child:        storedChild ? { lat: storedChild.lat, lon: storedChild.lon } : null,
+    child:        childConnected ? { lat: storedChild.lat, lon: storedChild.lon } : null,
     eta_minutes:  null,
     nearest_stop: '—',
     prefsVersion: idlePrefsVersion,
