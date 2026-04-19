@@ -50,16 +50,23 @@ router.get('/status', async (req, res) => {
       if (diff > 0) delayMins = diff;
     }
 
-    // rerouteAvailable: shown on child screen when delay > 10 min and prefs allow it
+    // Fetch prefs once for both rerouteAvailable and prefsVersion
     let rerouteAvailable = false;
-    if (delayMins > 10) {
-      try {
-        const { data: childRow } = await supabase.from('children')
-          .select('fallback_preference').eq('parent_id', parentId).single();
-        const fp = childRow?.fallback_preference || 'both';
-        rerouteAvailable = fp === 'next_route' || fp === 'both';
-      } catch { /* non-fatal */ }
-    }
+    let prefsVersion = null;
+    try {
+      const { data: childRow } = await supabase.from('children')
+        .select('fallback_preference, walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes')
+        .eq('parent_id', parentId).single();
+      if (childRow) {
+        const fp = childRow.fallback_preference || 'both';
+        rerouteAvailable = delayMins > 10 && (fp === 'next_route' || fp === 'both');
+        prefsVersion = JSON.stringify([
+          childRow.walking_speed, childRow.familiarity_level, childRow.transfer_tolerance,
+          childRow.walk_tolerance_m, childRow.buffer_minutes,
+          (childRow.allowed_modes || []).slice().sort().join(','),
+        ]);
+      }
+    } catch { /* non-fatal */ }
 
     return res.json({
       state,
@@ -71,6 +78,7 @@ router.get('/status', async (req, res) => {
       isRealTime:  nextDeparture?.isRealTime || false,
       delayMins,
       rerouteAvailable,
+      prefsVersion,
       originCoord: firstLeg?.fromCoord  || null,
       originName:  firstLeg?.from       || null,
       destCoord:   lastLeg?.toCoord     || null,
@@ -81,13 +89,28 @@ router.get('/status', async (req, res) => {
   }
 
   // ── Idle mode: no journey set, child not connected ───────────────────────
+  let idlePrefsVersion = null;
+  try {
+    const { data: childRow } = await supabase.from('children')
+      .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes')
+      .eq('parent_id', parentId).single();
+    if (childRow) {
+      idlePrefsVersion = JSON.stringify([
+        childRow.walking_speed, childRow.familiarity_level, childRow.transfer_tolerance,
+        childRow.walk_tolerance_m, childRow.buffer_minutes,
+        (childRow.allowed_modes || []).slice().sort().join(','),
+      ]);
+    }
+  } catch { /* non-fatal */ }
+
   res.json({
-    state:       'WAITING',
-    child:       storedChild ? { lat: storedChild.lat, lon: storedChild.lon } : null,
-    eta_minutes: null,
+    state:        'WAITING',
+    child:        storedChild ? { lat: storedChild.lat, lon: storedChild.lon } : null,
+    eta_minutes:  null,
     nearest_stop: '—',
-    timestamp:   new Date().toISOString(),
-    mode:        'idle',
+    prefsVersion: idlePrefsVersion,
+    timestamp:    new Date().toISOString(),
+    mode:         'idle',
   });
 });
 

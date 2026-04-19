@@ -74,22 +74,40 @@ export default function ChildView() {
   const [savedDests, setSavedDests]     = useState([]);
   const [loadingDest, setLoadingDest]   = useState(null); // dest id being auto-confirmed
   const [walkRoute, setWalkRoute]       = useState(null); // GeoJSON from Mapbox Directions
-  const watchRef       = useRef(null);
-  const coordsRef      = useRef(null);
-  const debounceRef    = useRef(null);
-  const routeFetchRef  = useRef(null); // timer for debouncing route re-fetches
+  const watchRef        = useRef(null);
+  const coordsRef       = useRef(null);
+  const debounceRef     = useRef(null);
+  const routeFetchRef   = useRef(null);
+  const prefsVersionRef = useRef(null); // tracks last seen prefs hash
+  const destRef         = useRef(null); // mirror of destination for callbacks
+  const goToRef         = useRef(null); // always points to latest goTo fn
 
   const depSecs = useCountdown(journey?.departs);
 
+  // Keep refs in sync on every render
+  useEffect(() => { destRef.current = destination; }, [destination]);
+
   useEffect(() => {
-    if (!journey) return;
+    if (!parentId) return;
     const pollStatus = () =>
       fetch(`${API_BASE}/api/safecommute/status?parentId=${parentId}`)
-        .then(r => r.json()).then(d => setLiveStatus(d)).catch(() => {});
+        .then(r => r.json()).then(d => {
+          setLiveStatus(d);
+          if (d.prefsVersion) {
+            if (prefsVersionRef.current !== null &&
+                d.prefsVersion !== prefsVersionRef.current &&
+                destRef.current && goToRef.current) {
+              prefsVersionRef.current = d.prefsVersion;
+              goToRef.current(destRef.current, true);
+            } else {
+              prefsVersionRef.current = d.prefsVersion;
+            }
+          }
+        }).catch(() => {});
     pollStatus();
     const sid = setInterval(pollStatus, 10000);
     return () => clearInterval(sid);
-  }, [journey]);
+  }, [parentId]);
 
   useEffect(() => {
     if (!journey) return;
@@ -531,7 +549,9 @@ export default function ChildView() {
   }
 
   // ── Main screen ───────────────────────────────────────────────────────────
-  const goTo = async (dest) => {
+  const goTo = async (dest, silent = false) => {
+    // Don't auto-reroute once the child has boarded
+    if (silent && boardedState) return;
     setLoadingDest(dest.id);
     const isAddress = !dest.stop_id;
     const stop = { id: dest.stop_id || null, name: dest.stop_name, coord: dest.stop_coord };
@@ -555,11 +575,11 @@ export default function ChildView() {
       if (loc && isAddress && stop.coord?.length >= 2) {
         // Address destination: coord-to-coord routing
         const [toLat, toLon] = stop.coord;
-        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}`;
+        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}&parentId=${parentId}`;
       } else if (loc && stop.id) {
-        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}`;
+        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}&parentId=${parentId}`;
       } else if (stop.id) {
-        url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}`;
+        url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}&parentId=${parentId}`;
       } else {
         setTrips([]); setLoadingDest(null); return;
       }
@@ -575,6 +595,7 @@ export default function ChildView() {
     }
     setLoadingDest(null);
   };
+  goToRef.current = goTo; // keep ref current after every render
 
   if (!parentId) {
     return (
