@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const MODE_ICONS = { 1: '🚆', 4: '🚊', 5: '🚌', 7: '🚌', 9: '⛴️' };
+const MODE_ICONS  = { 1: '🚆', 4: '🚊', 5: '🚌', 7: '🚌', 9: '⛴️' };
+const MODE_LABELS = { 1: 'train', 4: 'tram', 5: 'bus', 7: 'bus', 9: 'ferry' };
 const COMPASS = ['N','NE','E','SE','S','SW','W','NW'];
 
 // Distinct bright colors for destination buttons
@@ -423,7 +424,7 @@ export default function ChildView() {
               background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
               fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center',
             }}>
-              ⚠ Running {delayMins} min late
+              ⚠ Running {delayMins} min behind schedule
             </div>
           )}
 
@@ -446,7 +447,7 @@ export default function ChildView() {
                 }}
                 onClick={atStop ? boardBus : undefined}
               >
-                🚌 I'm on the bus!
+                {MODE_ICONS[leg?.mode] || '🚌'} I'm on the {MODE_LABELS[leg?.mode] || 'bus'}!
               </button>
               {!atStop && (
                 <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
