@@ -57,7 +57,7 @@ function ShareLink({ childLink, copied, onCopy }) {
   );
 }
 
-export default function SafeCommuteDashboard() {
+export default function Hansel & GretelDashboard() {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const [childName, setChildName] = useState('');
@@ -93,16 +93,16 @@ export default function SafeCommuteDashboard() {
 
         // Notifications
         if (!prevChildRef.current && data.child) {
-          notify('SafeCommute', `${childName || 'Your child'} is now sharing their location.`);
+          notify('Hansel & Gretel', `${childName || 'Your child'} is now sharing their location.`);
         }
         if (prevStateRef.current && prevStateRef.current !== data.state) {
-          if (data.state === 'ON_BUS') notify('SafeCommute', `${childName || 'Your child'} is on the bus! 🚌`);
-          if (data.state === 'ARRIVED') notify('SafeCommute', `${childName || 'Your child'} has arrived! ✅`);
+          if (data.state === 'ON_BUS') notify('Hansel & Gretel', `${childName || 'Your child'} is on the bus! 🚌`);
+          if (data.state === 'ARRIVED') notify('Hansel & Gretel', `${childName || 'Your child'} has arrived! ✅`);
           if (data.state === 'WAITING' && prevStateRef.current === 'ON_BUS') {
-            notify('SafeCommute', `Heads up — ${childName || 'your child'} may have gotten off.`);
+            notify('Hansel & Gretel', `Heads up — ${childName || 'your child'} may have gotten off.`);
           }
           if (data.state === 'WAITING') {
-            notify('SafeCommute', `${childName || 'Your child'} is walking to the stop 🚶`);
+            notify('Hansel & Gretel', `${childName || 'Your child'} is walking to the stop 🚶`);
           }
         }
         prevStateRef.current = data.state;
@@ -313,7 +313,7 @@ export default function SafeCommuteDashboard() {
           animation: 'fadeIn 0.4s ease',
         }}>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            SafeCommute {liveMode && '· Live'}
+            Hansel & Gretel {liveMode && '· Live'}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2' }}>

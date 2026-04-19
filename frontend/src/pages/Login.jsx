@@ -91,7 +91,7 @@ export default function Login() {
             color: 'var(--text-primary)',
             letterSpacing: '-0.02em',
           }}>
-            SafeCommute
+            Hansel & Gretel
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -127,7 +127,7 @@ export default function Login() {
             color: 'var(--text-muted)',
             marginBottom: 24,
           }}>
-            {mode === 'signin' ? 'Sign in to your account' : 'Create your SafeCommute account'}
+            {mode === 'signin' ? 'Sign in to your account' : 'Create your Hansel & Gretel account'}
           </p>
 
           <form onSubmit={handleSubmit}>

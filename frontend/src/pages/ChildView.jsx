@@ -632,7 +632,7 @@ export default function ChildView() {
         <div style={{ fontSize: 48, marginBottom: 20 }}>🔗</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 12 }}>Link not found</div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, maxWidth: 280 }}>
-          Ask your parent to share their SafeCommute link with you — it will open this app automatically.
+          Ask your parent to share their Hansel & Gretel link with you — it will open this app automatically.
         </div>
       </div>
     );
@@ -650,7 +650,7 @@ export default function ChildView() {
         {/* Header */}
         <div style={{ width: '100%', marginBottom: savedDests.length > 0 ? 28 : 12 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(133,169,71,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-            SafeCommute
+            Hansel & Gretel
           </div>
           <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
             {savedDests.length > 0 ? 'Where to?' : (sharing ? 'Location shared' : 'Ready to go?')}
