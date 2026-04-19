@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Map, { Marker } from 'react-map-gl';
+import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -10,10 +10,18 @@ const API_BASE     = import.meta.env.VITE_API_URL || '';
 const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
 const STATE_META = {
+  WALKING:  { bg: '#F59E0B', label: 'Walking to stop',  icon: '🚶' },
   WAITING:  { bg: '#85A947', label: 'Waiting at stop',  icon: '🚏' },
   ON_BUS:   { bg: '#3E7B27', label: 'On the bus',       icon: '🚌' },
   ARRIVED:  { bg: '#2563eb', label: 'Arrived',          icon: '✅' },
 };
+
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toR = x => x * Math.PI / 180;
+  const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function notify(title, body) {
   if (Notification.permission === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
@@ -56,6 +64,7 @@ export default function SafeCommuteDashboard() {
   const [copied, setCopied]       = useState(false);
   const prevStateRef  = useRef(null);
   const prevChildRef  = useRef(null);
+  const mapRef        = useRef(null);
   const childLink     = `${window.location.origin}/child`;
 
   // Load child name
@@ -90,6 +99,9 @@ export default function SafeCommuteDashboard() {
           if (data.state === 'WAITING' && prevStateRef.current === 'ON_BUS') {
             notify('SafeCommute', `Heads up — ${childName || 'your child'} may have gotten off.`);
           }
+          if (data.state === 'WAITING') {
+            notify('SafeCommute', `${childName || 'Your child'} is walking to the stop 🚶`);
+          }
         }
         prevStateRef.current = data.state;
         prevChildRef.current = data.child;
@@ -122,18 +134,37 @@ export default function SafeCommuteDashboard() {
   };
 
   const childConnected = !!status?.child;
-  const state      = status?.state ?? 'WAITING';
-  const eta        = status?.eta_minutes;
-  const stop       = status?.nearest_stop ?? '—';
-  const line       = status?.line;
-  const stateMeta  = STATE_META[state] ?? STATE_META.WAITING;
-  const childLng   = status?.child?.lon ?? INITIAL_VIEW.longitude;
-  const childLat   = status?.child?.lat ?? INITIAL_VIEW.latitude;
-  const liveMode   = status?.mode === 'live';
+  const state       = status?.state ?? 'WAITING';
+  const eta         = status?.eta_minutes;
+  const stop        = status?.nearest_stop ?? '—';
+  const line        = status?.line;
+  const childLng    = status?.child?.lon ?? INITIAL_VIEW.longitude;
+  const childLat    = status?.child?.lat ?? INITIAL_VIEW.latitude;
+  const liveMode    = status?.mode === 'live';
   const originCoord = status?.originCoord;
   const destCoord   = status?.destCoord;
   const destName    = status?.destName;
   const delayMins   = status?.delayMins;
+
+  // Detect walking: WAITING state + child location + boarding stop + >10m away
+  const distToStop = (state === 'WAITING' && childConnected && originCoord)
+    ? Math.round(haversineM(childLat, childLng, originCoord[0], originCoord[1]))
+    : null;
+  const isWalking  = distToStop !== null && distToStop > 10;
+  const walkMins   = distToStop !== null ? Math.max(1, Math.round(distToStop / 80)) : null;
+  const displayState = isWalking ? 'WALKING' : state;
+  const stateMeta  = STATE_META[displayState] ?? STATE_META.WAITING;
+
+  // Auto-zoom to frame child + boarding stop when walking
+  useEffect(() => {
+    if (!isWalking || !mapRef.current || !originCoord) return;
+    const [sLat, sLon] = originCoord;
+    mapRef.current.fitBounds(
+      [[Math.min(childLng, sLon) - 0.001, Math.min(childLat, sLat) - 0.001],
+       [Math.max(childLng, sLon) + 0.001, Math.max(childLat, sLat) + 0.001]],
+      { padding: 80, duration: 900 },
+    );
+  }, [isWalking, childLat, childLng]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
@@ -145,6 +176,7 @@ export default function SafeCommuteDashboard() {
       {/* Map */}
       {MAPBOX_TOKEN ? (
         <Map
+          ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           initialViewState={INITIAL_VIEW}
           style={{ width: '100%', height: '100%' }}
@@ -157,6 +189,31 @@ export default function SafeCommuteDashboard() {
                 <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#2563eb', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
               </div>
             </Marker>
+          )}
+
+          {/* Dashed walk path: child → boarding stop */}
+          {isWalking && originCoord && (
+            <Source type="geojson" data={{
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [childLng, childLat],
+                  [originCoord[1], originCoord[0]],
+                ],
+              },
+            }}>
+              <Layer
+                type="line"
+                paint={{
+                  'line-color': '#F59E0B',
+                  'line-width': 3,
+                  'line-dasharray': [2, 2],
+                  'line-opacity': 0.85,
+                }}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              />
+            </Source>
           )}
 
           {originCoord && (
@@ -292,19 +349,35 @@ export default function SafeCommuteDashboard() {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>ETA</div>
-            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
-              {eta != null ? eta : '—'}
+        {isWalking ? (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Distance</div>
+              <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#F59E0B', lineHeight: 1 }}>
+                {distToStop < 1000 ? `${distToStop}m` : `${(distToStop/1000).toFixed(1)}km`}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>to stop</div>
             </div>
-            {eta != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>minutes</div>}
+            <div style={{ flex: 2, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Walk ETA</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>~{walkMins} min to {stop !== '—' ? stop : (status?.originName ?? 'stop')}</div>
+            </div>
           </div>
-          <div style={{ flex: 2, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Stop</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{stop}</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>ETA</div>
+              <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1 }}>
+                {eta != null ? eta : '—'}
+              </div>
+              {eta != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>minutes</div>}
+            </div>
+            <div style={{ flex: 2, background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Stop</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{stop}</div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
