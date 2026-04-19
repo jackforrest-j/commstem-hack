@@ -6,11 +6,6 @@ import { useAuth } from '../context/AuthContext';
 const API_BASE     = import.meta.env.VITE_API_URL || '';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-const WALK_OPTIONS = [
-  { value: 'slow',   label: 'Slow',   emoji: '🐢', desc: '~60 m/min' },
-  { value: 'normal', label: 'Normal', emoji: '🚶', desc: '~80 m/min' },
-  { value: 'fast',   label: 'Fast',   emoji: '🏃', desc: '~100 m/min' },
-];
 
 function AddressSearch({ placeholder, onSelect, initial }) {
   const [query, setQuery]     = useState(initial?.name || '');
@@ -83,7 +78,6 @@ export default function ProfileSetup() {
   const [walkTolM, setWalkTolM]         = useState(500);
   const [bufferMins, setBufferMins]     = useState(5);
   const [allowedModes, setAllowedModes] = useState(null); // null = all
-  const [fallbackPref, setFallbackPref] = useState('both');
   const [destinations, setDestinations] = useState([
     { label: 'Home',   emoji: '🏠', stop: null },
     { label: 'School', emoji: '🏫', stop: null },
@@ -114,7 +108,6 @@ export default function ProfileSetup() {
         if (data.walk_tolerance_m != null) setWalkTolM(data.walk_tolerance_m);
         if (data.buffer_minutes != null) setBufferMins(data.buffer_minutes);
         setAllowedModes(data.allowed_modes?.length ? data.allowed_modes.map(Number) : null);
-        if (data.fallback_preference) setFallbackPref(data.fallback_preference);
       });
     supabase.from('child_destinations').select('*').eq('parent_id', user.id).order('sort_order')
       .then(({ data }) => {
@@ -161,7 +154,6 @@ export default function ProfileSetup() {
       walk_tolerance_m:    walkTolM,
       buffer_minutes:      bufferMins,
       allowed_modes:       allowedModes,
-      fallback_preference: fallbackPref,
     }).eq('id', childId);
     setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); setView('menu'); }, 1200);
@@ -185,7 +177,7 @@ export default function ProfileSetup() {
         icon: '🚶',
         title: 'Child preferences',
         subtitle: 'Walking speed and travel settings',
-        detail: `Walking speed: ${WALK_OPTIONS.find(o => o.value === walkSpeed)?.label || 'Normal'}`,
+        detail: `Walking pace: ${{ slow: 'Slow', normal: 'Normal', fast: 'Fast' }[walkSpeed] || 'Normal'}`,
         action: () => setView('preferences'),
       },
     ];
@@ -291,9 +283,11 @@ export default function ProfileSetup() {
 
   // ── Child preferences ────────────────────────────────────────────────────────
   if (view === 'preferences') {
-    const prefSection = (label) => (
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, marginTop: 24,
-        textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+    const prefSection = (label, subtitle) => (
+      <div style={{ marginTop: 28, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+        {subtitle && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, opacity: 0.7 }}>{subtitle}</div>}
+      </div>
     );
     const optRow = (options, value, onSelect) => (
       <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
@@ -316,9 +310,9 @@ export default function ProfileSetup() {
     );
 
     const TRANSPORT_CHIPS = [
-      { modes: [1, 2, 11], label: 'Train', emoji: '🚆' }, // Sydney Trains, TrainLink, Metro
-      { modes: [5, 7, 10], label: 'Bus',   emoji: '🚌' }, // Bus, Coach, School bus
-      { modes: [4],        label: 'Tram',  emoji: '🚊' }, // Light Rail
+      { modes: [1, 2, 11], label: 'Train', emoji: '🚆' },
+      { modes: [5, 7, 10], label: 'Bus',   emoji: '🚌' },
+      { modes: [4],        label: 'Tram',  emoji: '🚊' },
       { modes: [9],        label: 'Ferry', emoji: '⛴️' },
     ];
     const allActive = allowedModes === null;
@@ -333,35 +327,7 @@ export default function ProfileSetup() {
 
         <div style={{ padding: '0 24px 32px' }}>
 
-          {prefSection('Transport familiarity')}
-          {optRow([
-            { value: 'beginner',     emoji: '🌱', label: 'Just learning', desc: 'Direct routes only' },
-            { value: 'intermediate', emoji: '🚍', label: 'Gets around',   desc: 'Some transfers ok' },
-            { value: 'experienced',  emoji: '🎓', label: 'Experienced',   desc: 'Any route' },
-          ], familiarity, setFamiliarity)}
-
-          {prefSection('Transfer tolerance')}
-          {optRow([
-            { value: 0, emoji: '🎯', label: 'Direct only', desc: 'No changes' },
-            { value: 1, emoji: '🔄', label: 'One change',  desc: 'Max 1 transfer' },
-            { value: 2, emoji: '🗺️', label: 'Any route',   desc: 'Flexible' },
-          ], transferTol, v => setTransferTol(Number(v)))}
-
-          {prefSection('Max walking distance')}
-          {optRow([
-            { value: 200,  emoji: '🏃', label: 'Close',  desc: '200 m' },
-            { value: 500,  emoji: '🚶', label: 'Medium', desc: '500 m' },
-            { value: 1000, emoji: '🗺️', label: 'Far',    desc: '1 km' },
-          ], walkTolM, v => setWalkTolM(Number(v)))}
-
-          {prefSection('Departure buffer')}
-          {optRow([
-            { value: 5,  emoji: '⚡', label: '5 min',  desc: 'Leave ASAP' },
-            { value: 10, emoji: '🕐', label: '10 min', desc: 'Some buffer' },
-            { value: 15, emoji: '🛡️', label: '15 min', desc: 'Safe margin' },
-          ], bufferMins, v => setBufferMins(Number(v)))}
-
-          {prefSection('Allowed transport modes')}
+          {prefSection('Allowed transport modes', 'Only selected modes will be used — others are blocked')}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
             <button
               onClick={() => setAllowedModes(null)}
@@ -392,16 +358,40 @@ export default function ProfileSetup() {
               : `Your child can only use: ${TRANSPORT_CHIPS.filter(({ modes }) => modes.some(m => (allowedModes || []).includes(m))).map(c => c.label).join(', ')}. Other modes will be blocked.`}
           </div>
 
-          {prefSection('If a service is very delayed')}
+          {prefSection('Comfort with public transport', 'Affects how strongly we prefer simple, direct routes')}
           {optRow([
-            { value: 'notify_parent', emoji: '📱', label: 'Tell parent',    desc: 'Notify only' },
-            { value: 'next_route',    emoji: '🔄', label: 'Find new route', desc: 'Reroute only' },
-            { value: 'both',          emoji: '🛡️', label: 'Both',           desc: 'Notify + reroute' },
-          ], fallbackPref, setFallbackPref)}
+            { value: 'beginner',     emoji: '🌱', label: 'First timer',  desc: 'Always picks simplest route' },
+            { value: 'intermediate', emoji: '🚍', label: 'Getting there', desc: 'Balances simple + fast' },
+            { value: 'experienced',  emoji: '🎓', label: 'Confident',    desc: 'Fastest route wins' },
+          ], familiarity, setFamiliarity)}
 
-          {prefSection('Walking speed')}
-          {optRow(WALK_OPTIONS.map(o => ({ value: o.value, emoji: o.emoji, label: o.label, desc: o.desc })),
-            walkSpeed, setWalkSpeed)}
+          {prefSection('Maximum transfers', 'Routes needing more changes will be penalised or hidden')}
+          {optRow([
+            { value: 0, emoji: '🎯', label: 'None',    desc: 'Direct routes only' },
+            { value: 1, emoji: '🔄', label: 'One',     desc: 'Up to 1 transfer' },
+            { value: 2, emoji: '🗺️', label: 'Any',     desc: 'No limit' },
+          ], transferTol, v => setTransferTol(Number(v)))}
+
+          {prefSection('Maximum walking distance', 'Stops further than this will be filtered out entirely')}
+          {optRow([
+            { value: 200,  emoji: '🏃', label: '200m', desc: '~2 min walk' },
+            { value: 500,  emoji: '🚶', label: '500m', desc: '~6 min walk' },
+            { value: 1000, emoji: '🗺️', label: '1km',  desc: '~12 min walk' },
+          ], walkTolM, v => setWalkTolM(Number(v)))}
+
+          {prefSection('Leave-early buffer', 'Extra time before departure so your child is never rushed')}
+          {optRow([
+            { value: 5,  emoji: '⚡', label: '5 min',  desc: 'Leave ASAP' },
+            { value: 10, emoji: '🕐', label: '10 min', desc: 'Breathing room' },
+            { value: 15, emoji: '🛡️', label: '15 min', desc: 'Extra safe' },
+          ], bufferMins, v => setBufferMins(Number(v)))}
+
+          {prefSection('Walking pace', 'Used to calculate if your child can reach the stop in time')}
+          {optRow([
+            { value: 'slow',   emoji: '🐢', label: 'Slow',   desc: '~60m/min' },
+            { value: 'normal', emoji: '🚶', label: 'Normal', desc: '~80m/min' },
+            { value: 'fast',   emoji: '🏃', label: 'Fast',   desc: '~100m/min' },
+          ], walkSpeed, setWalkSpeed)}
 
           <div style={{ marginTop: 32 }}>
             <button onClick={savePreferences} disabled={saving} style={saveBtn(saved)}>

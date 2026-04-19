@@ -300,8 +300,7 @@ export default function ChildView() {
     const loc         = coords;
     const isAtStop    = boardedState === 'AT_STOP';
     const isBoarded   = boardedState === 'ON_BUS';
-    const delayMins        = liveStatus?.delayMins;
-    const rerouteAvailable = liveStatus?.rerouteAvailable && delayMins > 10;
+    const delayMins = liveStatus?.delayMins;
     const depPast     = depSecs !== null && depSecs <= 0;
 
     let distM = null, walkMins = null, dir = null;
@@ -485,17 +484,6 @@ export default function ChildView() {
               <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center' }}>
                 ⚠ {leg?.line ? `${MODE_ICONS[leg?.mode] || '🚌'} ${leg.line}` : 'Service'} is running {delayMins} min behind schedule
               </div>
-              {rerouteAvailable && (
-                <button
-                  onClick={() => destination && goTo(destination)}
-                  disabled={loadingDest}
-                  style={{
-                    marginTop: 10, width: '100%', padding: '10px', borderRadius: 10, border: 'none',
-                    background: '#f87171', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  }}>
-                  {loadingDest ? 'Finding route…' : 'Find next route →'}
-                </button>
-              )}
             </div>
           )}
 

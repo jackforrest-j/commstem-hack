@@ -55,16 +55,12 @@ router.get('/status', async (req, res) => {
       if (diff > 0) delayMins = diff;
     }
 
-    // Fetch prefs once for both rerouteAvailable and prefsVersion
-    let rerouteAvailable = false;
     let prefsVersion = null;
     try {
       const { data: childRow } = await supabase.from('children')
-        .select('fallback_preference, walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes')
+        .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes')
         .eq('parent_id', parentId).single();
       if (childRow) {
-        const fp = childRow.fallback_preference || 'both';
-        rerouteAvailable = delayMins > 10 && (fp === 'next_route' || fp === 'both');
         prefsVersion = JSON.stringify([
           childRow.walking_speed, childRow.familiarity_level, childRow.transfer_tolerance,
           childRow.walk_tolerance_m, childRow.buffer_minutes,
@@ -85,7 +81,6 @@ router.get('/status', async (req, res) => {
       nextDeparts: nextDeparture?.departs || null,
       isRealTime:  nextDeparture?.isRealTime || false,
       delayMins,
-      rerouteAvailable,
       prefsVersion,
       pendingRouteRequest,
       routeApprovalStatus,

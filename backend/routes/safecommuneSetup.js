@@ -28,7 +28,7 @@ async function fetchChildPrefs(parentId) {
   if (!parentId) return null;
   try {
     const { data } = await supabase.from('children')
-      .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes, fallback_preference')
+      .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes')
       .eq('parent_id', parentId).single();
     return data || null;
   } catch { return null; }
