@@ -203,11 +203,11 @@ export default function ChildView() {
     let url;
     if (loc && dest.id == null && dest.coord?.length >= 2) {
       const [toLat, toLon] = dest.coord;
-      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}`;
+      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}&parentId=${parentId}`;
     } else if (loc) {
-      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${dest.id}`;
+      url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${dest.id}&parentId=${parentId}`;
     } else {
-      url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${dest.id}`;
+      url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${dest.id}&parentId=${parentId}`;
     }
 
     const res = await fetch(url);
