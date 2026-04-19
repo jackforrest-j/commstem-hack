@@ -27,10 +27,6 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
   const transferTol = prefs.transfer_tolerance ?? 1;
   const walkTolM    = prefs.walk_tolerance_m  ?? 500;
   const bufferMins  = prefs.buffer_minutes     ?? 5;
-  // Normalise to numbers — Supabase int[] can come back as strings
-  const allowedModes = prefs.allowed_modes?.length
-    ? prefs.allowed_modes.map(Number)
-    : null;
   const speedMps = WALK_SPEED_MPS[walkSpeed] || 1.33;
 
   const scored = trips.map(trip => {
@@ -38,17 +34,6 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
     const lastLeg  = trip.legs?.[trip.legs.length - 1];
     let score = 0;
 
-    // ── Soft: mode preference penalty (-500 per leg outside preference) ──────
-    let prefsMismatch = false;
-    if (allowedModes && trip.legs) {
-      for (const leg of trip.legs) {
-        const legMode = leg.mode != null ? Number(leg.mode) : null;
-        if (legMode != null && !allowedModes.includes(legMode)) {
-          score -= 500;
-          prefsMismatch = true;
-        }
-      }
-    }
 
     // ── Hard filter: walk tolerance — both ends ───────────────────────────
     let walkToStop = 0;
@@ -81,7 +66,7 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
     // ── Soft: walk distance penalty ───────────────────────────────────────
     score -= (walkToStop + walkFromStop) * 0.03;
 
-    return { trip: { ...trip, prefsMismatch }, score };
+    return { trip, score };
   });
 
   return scored.sort((a, b) => b.score - a.score).map(s => s.trip);

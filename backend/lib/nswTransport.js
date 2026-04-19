@@ -70,7 +70,38 @@ async function nearbyStops(lat, lon) {
 }
 
 // Plan trip between two stop IDs
-async function planTrip(originId, destinationId) {
+// Build inclMOT_X params from an allowed product-class array.
+// NSW EFA numbering: 0=train, 1=suburban, 2=metro, 3=urban rail,
+// 4=tram, 5=bus, 6=coach, 7=ferry, 8=cable, 9=gondola, 10=funicular,
+// 11=shared taxi, 12=school bus
+function buildModeParams(allowedModes) {
+  if (!allowedModes?.length) return {}; // null/empty = all modes, no restriction
+
+  // Map our product-class groups to the MOT indices they cover
+  const CLASS_TO_MOT = {
+    1:  [0, 1, 3], // Sydney Trains / heavy rail
+    2:  [0, 1, 3], // TrainLink (intercity)
+    11: [2],       // Sydney Metro
+    4:  [4],       // Light Rail
+    5:  [5],       // Bus
+    7:  [6],       // Coach
+    10: [5, 12],   // School Bus
+    9:  [7],       // Ferry
+  };
+
+  const enabled = new Set();
+  for (const cls of allowedModes) {
+    for (const mot of (CLASS_TO_MOT[cls] || [])) enabled.add(mot);
+  }
+
+  const out = {};
+  for (let i = 0; i <= 12; i++) {
+    out[`inclMOT_${i}`] = enabled.has(i) ? '1' : '0';
+  }
+  return out;
+}
+
+async function planTrip(originId, destinationId, allowedModes) {
   const { date, time } = sydneyDateTime();
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
@@ -84,13 +115,14 @@ async function planTrip(originId, destinationId) {
     type_destination: 'stop',
     name_destination: destinationId,
     calcNumberOfTrips: '5',
+    ...buildModeParams(allowedModes),
   });
   const data = await nswFetch('trip', params);
   return parseJourneys(data);
 }
 
 // Plan trip from a GPS coordinate to a destination stop ID
-async function planTripFromCoord(lat, lon, destinationId) {
+async function planTripFromCoord(lat, lon, destinationId, allowedModes) {
   const { date, time } = sydneyDateTime();
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
@@ -104,13 +136,14 @@ async function planTripFromCoord(lat, lon, destinationId) {
     type_destination: 'stop',
     name_destination: destinationId,
     calcNumberOfTrips: '5',
+    ...buildModeParams(allowedModes),
   });
   const data = await nswFetch('trip', params);
   return parseJourneys(data);
 }
 
 // Plan trip from a GPS coordinate to a destination coordinate (address)
-async function planTripFromCoordToCoord(fromLat, fromLon, toLat, toLon) {
+async function planTripFromCoordToCoord(fromLat, fromLon, toLat, toLon, allowedModes) {
   const { date, time } = sydneyDateTime();
   const params = new URLSearchParams({
     outputFormat: 'rapidJSON',
@@ -124,6 +157,7 @@ async function planTripFromCoordToCoord(fromLat, fromLon, toLat, toLon) {
     type_destination: 'coord',
     name_destination: `${toLon}:${toLat}:EPSG:4326`,
     calcNumberOfTrips: '5',
+    ...buildModeParams(allowedModes),
   });
   const data = await nswFetch('trip', params);
   return parseJourneys(data);

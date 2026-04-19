@@ -549,7 +549,7 @@ export default function ChildView() {
   }
 
   // ── Main screen ───────────────────────────────────────────────────────────
-  const goTo = async (dest, silent = false, ignorePrefs = false) => {
+  const goTo = async (dest, silent = false) => {
     // Don't auto-reroute once the child has boarded
     if (silent && boardedState) return;
     setLoadingDest(dest.id);
@@ -571,7 +571,7 @@ export default function ChildView() {
     }
 
     try {
-      const extra = `&parentId=${parentId}${ignorePrefs ? '&ignorePrefs=true' : ''}`;
+      const extra = `&parentId=${parentId}`;
       let url;
       if (loc && isAddress && stop.coord?.length >= 2) {
         const [toLat, toLon] = stop.coord;
@@ -784,14 +784,9 @@ export default function ChildView() {
                         <span style={{ fontSize: 17, fontWeight: 800, color: isFirst ? '#fff' : '#EFE3C2' }}>
                           {label}
                         </span>
-                        {isFirst && !trip.prefsMismatch && (
+                        {isFirst && (
                           <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#85A947', background: 'rgba(133,169,71,0.15)', padding: '2px 8px', borderRadius: 6 }}>
                             Next
-                          </span>
-                        )}
-                        {trip.prefsMismatch && (
-                          <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#F59E0B', background: 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 6 }}>
-                            ⚠ Outside preferences
                           </span>
                         )}
                       </div>
