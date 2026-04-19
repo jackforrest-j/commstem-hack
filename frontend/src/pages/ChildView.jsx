@@ -4,11 +4,20 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '../lib/supabase';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const MODE_ICONS = { 1: '🚆', 4: '🚊', 5: '🚌', 7: '🚌', 9: '⛴️' };
 const COMPASS = ['N','NE','E','SE','S','SW','W','NW'];
+
+// Distinct bright colors for destination buttons
+const DEST_COLORS = [
+  { bg: 'rgba(245,158,11,0.18)', border: 'rgba(245,158,11,0.55)', glow: 'rgba(245,158,11,0.35)', text: '#F59E0B' },  // amber
+  { bg: 'rgba(59,130,246,0.18)',  border: 'rgba(59,130,246,0.55)',  glow: 'rgba(59,130,246,0.35)',  text: '#60A5FA' },  // blue
+  { bg: 'rgba(139,92,246,0.18)', border: 'rgba(139,92,246,0.55)', glow: 'rgba(139,92,246,0.35)', text: '#A78BFA' },  // purple
+  { bg: 'rgba(236,72,153,0.18)', border: 'rgba(236,72,153,0.55)', glow: 'rgba(236,72,153,0.35)', text: '#F472B6' },  // pink
+  { bg: 'rgba(16,185,129,0.18)', border: 'rgba(16,185,129,0.55)', glow: 'rgba(16,185,129,0.35)', text: '#34D399' },  // emerald
+  { bg: 'rgba(249,115,22,0.18)', border: 'rgba(249,115,22,0.55)', glow: 'rgba(249,115,22,0.35)', text: '#FB923C' },  // orange
+];
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000, toR = x => x * Math.PI / 180;
@@ -41,20 +50,20 @@ function fmtCountdown(secs) {
   if (secs <= 0) return 'Now';
   const m = Math.floor(secs / 60), s = secs % 60;
   if (m === 0) return `${s}s`;
-  return `${m}m ${String(s).padStart(2,'0')}s`;
+  return `${m}:${String(s).padStart(2,'0')}`;
 }
 
 export default function ChildView() {
-  const [sharing, setSharing]         = useState(false);
-  const [coords, setCoords]           = useState(null);
-  const [gpsError, setGpsError]       = useState('');
-  const [nearestStop, setNearestStop] = useState(null);
-  const [destination, setDestination] = useState(null);
-  const [query, setQuery]             = useState('');
-  const [stopResults, setStopResults] = useState([]);
-  const [trips, setTrips]             = useState(null);
+  const [sharing, setSharing]           = useState(false);
+  const [coords, setCoords]             = useState(null);
+  const [gpsError, setGpsError]         = useState('');
+  const [nearestStop, setNearestStop]   = useState(null);
+  const [destination, setDestination]   = useState(null);
+  const [query, setQuery]               = useState('');
+  const [stopResults, setStopResults]   = useState([]);
+  const [trips, setTrips]               = useState(null);
   const [loadingTrips, setLoadingTrips] = useState(false);
-  const [journey, setJourney]         = useState(null);
+  const [journey, setJourney]           = useState(null);
   const [boardedState, setBoardedState] = useState(null);
   const [liveStatus, setLiveStatus]     = useState(null);
   const [vehicles, setVehicles]         = useState([]);
@@ -65,7 +74,6 @@ export default function ChildView() {
 
   const depSecs = useCountdown(journey?.departs);
 
-  // Poll live status (delay) + nearby vehicles every 10s once journey confirmed
   useEffect(() => {
     if (!journey) return;
     const pollStatus = () =>
@@ -91,7 +99,6 @@ export default function ChildView() {
     return () => clearInterval(vid);
   }, [journey]);
 
-  // Load parent's saved destinations from Supabase (anon read allowed)
   useEffect(() => {
     supabase.from('child_destinations').select('*').order('sort_order')
       .then(({ data }) => { if (data?.length) setSavedDests(data); });
@@ -110,8 +117,7 @@ export default function ChildView() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lat, lon }),
         }).then(r => { if (!r.ok) setGpsError(`Server error: ${r.status}`); else setGpsError(''); })
-          .catch(e => setGpsError(`Cannot reach server: ${e.message}`));
-        // Find nearest stop once (only when we don't have one yet)
+          .catch(e => setGpsError(`Can't reach server: ${e.message}`));
         if (!coordsRef.nearestFetched) {
           coordsRef.nearestFetched = true;
           fetch(`${API_BASE}/api/safecommute/stops/nearby?lat=${lat}&lon=${lon}`)
@@ -131,7 +137,6 @@ export default function ChildView() {
     setSharing(false); setCoords(null); coordsRef.current = null;
   };
 
-  // Destination stop search
   useEffect(() => {
     if (query.length < 2) { setStopResults([]); return; }
     clearTimeout(debounceRef.current);
@@ -175,15 +180,14 @@ export default function ChildView() {
 
   // ── Journey confirmed: fullscreen map ────────────────────────────────────
   if (journey) {
-    const leg        = journey.legs[0];
-    const originCoord = leg?.fromCoord;   // [lat, lon]
-    const destCoord   = destination?.coord; // [lat, lon]
+    const leg         = journey.legs[0];
+    const originCoord = leg?.fromCoord;
+    const destCoord   = destination?.coord;
     const loc         = coords;
     const isBoarded   = boardedState === 'ON_BUS';
     const delayMins   = liveStatus?.delayMins;
     const depPast     = depSecs !== null && depSecs <= 0;
 
-    // Walk directions
     let distM = null, walkMins = null, dir = null;
     if (loc && originCoord) {
       const [sLat, sLon] = originCoord;
@@ -192,73 +196,67 @@ export default function ChildView() {
       dir      = COMPASS[Math.round(bearingTo(loc.lat, loc.lon, sLat, sLon) / 45) % 8];
     }
 
-    // Map center: midpoint between child and destination (or origin stop)
     const focusLat = loc?.lat ?? (originCoord?.[0] ?? -33.878);
     const focusLon = loc?.lon ?? (originCoord?.[1] ?? 151.215);
+
+    const countdownColor = depPast ? '#f87171' : (depSecs !== null && depSecs < 120) ? '#FBBF24' : '#34D399';
 
     return (
       <div style={{ position: 'fixed', inset: 0, fontFamily: 'var(--font-ui)' }}>
         <style>{`
-          @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-          @keyframes ping{0%{transform:scale(1);opacity:0.8}100%{transform:scale(2.5);opacity:0}}
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+          @keyframes ping  { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(2.5);opacity:0} }
+          @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         `}</style>
 
-        {/* Map */}
         {MAPBOX_TOKEN ? (
           <Map
             mapboxAccessToken={MAPBOX_TOKEN}
             initialViewState={{ longitude: focusLon, latitude: focusLat, zoom: 14 }}
             style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/streets-v12"
+            mapStyle="mapbox://styles/mapbox/dark-v11"
           >
-            {/* Child — pulsing blue dot */}
             {loc && (
               <Marker longitude={loc.lon} latitude={loc.lat} anchor="center">
-                <div style={{ position: 'relative', width: 20, height: 20 }}>
-                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'ping 1.5s ease-out infinite' }} />
-                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#2563eb', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }} />
+                <div style={{ position: 'relative', width: 22, height: 22 }}>
+                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#60A5FA', animation: 'ping 1.5s ease-out infinite' }} />
+                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#3B82F6', border: '2px solid #fff', boxShadow: '0 0 12px rgba(59,130,246,0.7)' }} />
                 </div>
               </Marker>
             )}
 
-            {/* Origin stop — green "Board here" pin */}
             {originCoord && (
               <Marker longitude={originCoord[1]} latitude={originCoord[0]} anchor="bottom">
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 26 }}>🚏</div>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, color: '#fff', background: '#3E7B27',
-                    borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2,
-                  }}>Board here</div>
+                  <div style={{ fontSize: 28 }}>🚏</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#3E7B27', borderRadius: 5, padding: '2px 6px', whiteSpace: 'nowrap', marginTop: 2, boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                    Board here
+                  </div>
                 </div>
               </Marker>
             )}
 
-            {/* Destination — accent flag */}
             {destCoord && (
               <Marker longitude={destCoord[1]} latitude={destCoord[0]} anchor="bottom">
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 26 }}>📍</div>
-                  <div style={{
-                    fontSize: 10, fontWeight: 700, color: '#123524', background: '#85A947',
-                    borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2,
-                    maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>{destination?.name?.split(',')[0]}</div>
+                  <div style={{ fontSize: 28 }}>📍</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#123524', background: '#85A947', borderRadius: 5, padding: '2px 6px', whiteSpace: 'nowrap', marginTop: 2, maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                    {destination?.name?.split(',')[0]}
+                  </div>
                 </div>
               </Marker>
             )}
 
-            {/* Live nearby vehicles */}
             {vehicles.map(v => (
               <Marker key={v.id} longitude={v.lon} latitude={v.lat} anchor="center">
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 3,
-                  background: v.isTarget ? '#85A947' : 'rgba(30,30,30,0.82)',
-                  border: v.isTarget ? '2px solid #3E7B27' : '1px solid rgba(255,255,255,0.15)',
+                  background: v.isTarget ? '#85A947' : 'rgba(15,15,15,0.88)',
+                  border: v.isTarget ? '2px solid #3E7B27' : '1px solid rgba(255,255,255,0.18)',
                   borderRadius: 6, padding: v.isTarget ? '4px 8px' : '2px 6px',
                   fontSize: v.isTarget ? 13 : 10, fontWeight: 700,
-                  color: v.isTarget ? '#123524' : '#eee',
-                  boxShadow: v.isTarget ? '0 3px 10px rgba(0,0,0,0.55)' : '0 1px 3px rgba(0,0,0,0.3)',
+                  color: v.isTarget ? '#123524' : '#ddd',
+                  boxShadow: v.isTarget ? '0 0 14px rgba(133,169,71,0.6)' : '0 1px 4px rgba(0,0,0,0.4)',
                   transform: v.isTarget ? 'scale(1.25)' : 'scale(1)',
                   transformOrigin: 'center', whiteSpace: 'nowrap', pointerEvents: 'none',
                 }}>
@@ -268,40 +266,51 @@ export default function ChildView() {
             ))}
           </Map>
         ) : (
-          <div style={{ width: '100%', height: '100%', background: '#e8f0e8' }} />
+          <div style={{ width: '100%', height: '100%', background: '#0d1b2a' }} />
         )}
 
-        {/* Bottom overlay card */}
+        {/* Bottom glassmorphism card */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
-          background: 'var(--sidebar-bg)', borderRadius: '20px 20px 0 0',
-          padding: '16px 20px 36px', boxShadow: '0 -4px 32px rgba(0,0,0,0.3)',
+          background: 'rgba(10,22,40,0.82)',
+          backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+          borderRadius: '24px 24px 0 0',
+          padding: '16px 20px 40px',
+          boxShadow: '0 -2px 40px rgba(0,0,0,0.5)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          animation: 'slideUp 0.35s ease',
         }}>
-          <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 16px' }} />
+          <div style={{ width: 40, height: 4, background: 'rgba(255,255,255,0.18)', borderRadius: 2, margin: '0 auto 18px' }} />
 
-          {/* Line + destination */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <span style={styles.badge}>{MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}</span>
-            <span style={{ fontSize: 14, color: '#EFE3C2', fontWeight: 600 }}>→ {destination?.name?.split(',')[0]}</span>
+          {/* Route + destination */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '5px 10px', fontSize: 13, fontWeight: 800,
+              background: 'rgba(133,169,71,0.22)', color: '#85A947',
+              borderRadius: 8, border: '1px solid rgba(133,169,71,0.35)',
+            }}>
+              {MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              → {destination?.name?.split(',')[0]}
+            </span>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            {/* Walk distance */}
-            {!isBoarded && distM !== null && (
-              <div style={{ ...styles.infoCard, flex: 1 }}>
-                <div style={styles.infoLabel}>WALK</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#EFE3C2' }}>{dir} {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}</div>
-                <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>~{walkMins} min</div>
+          {/* Countdown + walk row */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{
+              flex: 1.2, background: 'rgba(255,255,255,0.05)', borderRadius: 16,
+              padding: '14px 16px', border: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+                {depPast ? 'Departed' : 'Departs in'}
               </div>
-            )}
-
-            {/* Countdown */}
-            <div style={{ ...styles.infoCard, flex: 1 }}>
-              <div style={styles.infoLabel}>{depPast ? 'DEPARTED' : 'DEPARTS'}</div>
               <div style={{
-                fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)',
-                color: depPast ? '#f87171' : '#85A947',
-                animation: depSecs !== null && depSecs > 0 && depSecs < 60 ? 'pulse 1s infinite' : 'none',
+                fontSize: 40, fontWeight: 900, fontFamily: 'var(--font-mono)',
+                color: countdownColor, lineHeight: 1,
+                animation: depSecs !== null && depSecs > 0 && depSecs < 60 ? 'pulse 0.8s infinite' : 'none',
+                textShadow: `0 0 20px ${countdownColor}55`,
               }}>
                 {depPast || depSecs === null
                   ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
@@ -309,42 +318,74 @@ export default function ChildView() {
                     ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
                     : fmtCountdown(depSecs)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>{journey.durationMin} min ride</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+                {journey.durationMin} min ride
+              </div>
             </div>
+
+            {!isBoarded && distM !== null && (
+              <div style={{
+                flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 16,
+                padding: '14px 16px', border: '1px solid rgba(255,255,255,0.08)',
+              }}>
+                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Walk
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#EFE3C2', lineHeight: 1 }}>
+                  {dir} {distM < 1000 ? `${distM}m` : `${(distM/1000).toFixed(1)}km`}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>~{walkMins} min</div>
+              </div>
+            )}
           </div>
 
-          {/* Delay banner */}
           {delayMins > 0 && (
             <div style={{
-              marginTop: 10, padding: '10px 14px', borderRadius: 10,
-              background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)',
-              fontSize: 13, fontWeight: 600, color: '#f87171', textAlign: 'center',
+              marginBottom: 12, padding: '10px 14px', borderRadius: 12,
+              background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
+              fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center',
             }}>
               ⚠ Running {delayMins} min late
             </div>
           )}
 
-          {/* Board / arrived button */}
           {!isBoarded ? (
-            <button style={{ ...styles.btn, ...styles.btnStart, marginTop: 12 }} onClick={boardBus}>
-              ✅ I'm on the bus
+            <button
+              style={{
+                width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                background: 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)',
+                color: '#fff', border: 'none', borderRadius: 16, cursor: 'pointer',
+                boxShadow: '0 4px 20px rgba(62,123,39,0.5)',
+                letterSpacing: '0.01em',
+              }}
+              onClick={boardBus}
+            >
+              🚌 I'm on the bus!
             </button>
           ) : (
-            <div style={{ ...styles.infoCard, marginTop: 12, borderColor: 'rgba(133,169,71,0.5)', textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#85A947' }}>🚌 On the way! Arriving {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div style={{
+              padding: '14px 16px', borderRadius: 16, textAlign: 'center',
+              background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)',
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#34D399' }}>
+                ✓ On the way!
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>
+                Arriving {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
             {!sharing
-              ? <button style={{ fontSize: 12, background: 'none', border: 'none', color: '#85A947', cursor: 'pointer' }} onClick={start}>📍 Start sharing</button>
-              : <span style={{ fontSize: 12, color: 'var(--sidebar-muted)' }}>📍 Sharing live</span>
+              ? <button style={styles.ghostBtn} onClick={start}>📍 Start sharing</button>
+              : <span style={{ fontSize: 12, color: 'rgba(52,211,153,0.7)', fontWeight: 600 }}>📍 Sharing live</span>
             }
             <button
-              style={{ fontSize: 12, background: 'none', border: 'none', color: 'var(--sidebar-muted)', cursor: 'pointer' }}
+              style={styles.ghostBtn}
               onClick={() => { setJourney(null); setDestination(null); setTrips(null); setQuery(''); setBoardedState(null); }}
             >
-              Change trip
+              ← Change trip
             </button>
           </div>
         </div>
@@ -360,95 +401,113 @@ export default function ChildView() {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        .dest-btn:active { transform: scale(0.94) !important; }
+      `}</style>
+
       <div style={styles.card}>
 
-        {/* ── Saved destination circles (primary UI when parent has set them up) ── */}
-        {savedDests.length > 0 && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#EFE3C2', marginBottom: 6, alignSelf: 'flex-start' }}>
-              Where are you going?
+        {/* Header */}
+        <div style={{ width: '100%', marginBottom: savedDests.length > 0 ? 28 : 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(133,169,71,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+            SafeCommute
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
+            {savedDests.length > 0 ? 'Where to?' : (sharing ? 'Location shared' : 'Ready to go?')}
+          </div>
+          {savedDests.length === 0 && (
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 6, lineHeight: 1.5 }}>
+              {sharing ? 'Your parent can see where you are.' : 'Tap the button so your parent can see where you are.'}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--sidebar-muted)', marginBottom: 24, alignSelf: 'flex-start' }}>
-              Tap a destination — your location will be shared automatically
-            </div>
+          )}
+        </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, width: '100%', marginBottom: 28 }}>
-              {savedDests.map(d => (
+        {/* Saved destination circles */}
+        {savedDests.length > 0 && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 14, width: '100%', marginBottom: 28,
+            animation: 'fadeInUp 0.4s ease',
+          }}>
+            {savedDests.map((d, i) => {
+              const c = DEST_COLORS[i % DEST_COLORS.length];
+              return (
                 <button
                   key={d.id}
+                  className="dest-btn"
                   onClick={() => goTo(d)}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
+                    transition: 'transform 0.15s',
                   }}
                 >
                   <div style={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    background: 'rgba(133,169,71,0.15)',
-                    border: '2px solid rgba(133,169,71,0.35)',
+                    width: 76, height: 76, borderRadius: '50%',
+                    background: c.bg,
+                    border: `2px solid ${c.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 30,
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                    transition: 'transform 0.1s, background 0.1s',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(133,169,71,0.28)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(133,169,71,0.15)'; e.currentTarget.style.transform = 'scale(1)'; }}
-                  >
+                    fontSize: 32,
+                    boxShadow: `0 4px 20px ${c.glow}`,
+                    transition: 'box-shadow 0.15s, transform 0.15s',
+                  }}>
                     {d.emoji}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#EFE3C2' }}>{d.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: c.text, textAlign: 'center', lineHeight: 1.2 }}>
+                    {d.label}
+                  </span>
                 </button>
-              ))}
-            </div>
-            <div style={styles.divider} />
-            <div style={{ fontSize: 12, color: 'var(--sidebar-muted)', marginBottom: 10, alignSelf: 'flex-start' }}>
-              Or search for another stop
-            </div>
-          </>
+              );
+            })}
+          </div>
         )}
 
-        {/* ── No saved dests: show the classic header ── */}
+        {/* No saved dests: share button */}
         {savedDests.length === 0 && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>{sharing ? '📍' : '🚌'}</div>
-            <div style={styles.heading}>{sharing ? 'Location shared' : 'Ready to go?'}</div>
-            <div style={styles.muted}>
-              {sharing ? 'Your parent can see where you are.' : 'Tap the button so your parent can see where you are.'}
-            </div>
-          </>
+          <button onClick={sharing ? stop : start} style={{
+            ...styles.btn,
+            background: sharing
+              ? 'rgba(220,38,38,0.15)'
+              : 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)',
+            color: sharing ? '#f87171' : '#fff',
+            border: sharing ? '2px solid rgba(220,38,38,0.3)' : 'none',
+            boxShadow: sharing ? 'none' : '0 4px 20px rgba(62,123,39,0.45)',
+          }}>
+            {sharing ? 'Stop sharing' : '📍 Share my location'}
+          </button>
         )}
 
-        {gpsError && <div style={styles.error}>{gpsError}</div>}
+        {gpsError && (
+          <div style={{ color: '#f87171', fontSize: 13, marginTop: 10, width: '100%', textAlign: 'center' }}>
+            {gpsError}
+          </div>
+        )}
 
         {coords && (
-          <div style={{ ...styles.infoCard, marginBottom: 12 }}>
-            <div style={styles.infoLabel}>LIVE LOCATION</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#EFE3C2' }}>
-              {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
+          <div style={{ ...styles.infoCard, marginTop: 16 }}>
+            <div style={styles.infoLabel}>Live location</div>
+            <div style={{ fontSize: 13, color: '#34D399', fontFamily: 'var(--font-mono)' }}>
+              ● Sharing · ±{coords.accuracy}m
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--sidebar-muted)', marginTop: 2 }}>
-              ±{coords.accuracy}m · {nearestStop ? `Near ${nearestStop.name}` : 'Finding stop…'}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+              {nearestStop ? `Near ${nearestStop.name}` : 'Finding nearest stop…'}
             </div>
           </div>
         )}
 
-        {/* Share/stop button — secondary when saved dests exist */}
-        {savedDests.length === 0 && (
-          <button onClick={sharing ? stop : start} style={{ ...styles.btn, ...(sharing ? styles.btnStop : styles.btnStart) }}>
-            {sharing ? 'Stop sharing' : 'Share my location'}
-          </button>
-        )}
-        {savedDests.length > 0 && sharing && (
-          <button onClick={stop} style={{ ...styles.btn, ...styles.btnStop, fontSize: 13, padding: '11px' }}>
-            Stop sharing location
-          </button>
-        )}
-
+        {/* Divider + search */}
         {(sharing || savedDests.length > 0) && (
-          <div style={{ width: '100%', marginTop: savedDests.length > 0 ? 0 : 32 }}>
-            {savedDests.length === 0 && <div style={styles.divider} />}
-            {savedDests.length === 0 && (
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', marginBottom: 12 }}>Where are you going?</div>
+          <div style={{ width: '100%', marginTop: savedDests.length > 0 ? 0 : 24 }}>
+            {savedDests.length > 0 && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em' }}>
+                Or search for another stop
+              </div>
+            )}
+            {savedDests.length === 0 && sharing && (
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', marginBottom: 12 }}>
+                Where are you going?
+              </div>
             )}
 
             <div style={{ position: 'relative' }}>
@@ -469,12 +528,22 @@ export default function ChildView() {
               )}
             </div>
 
-            {loadingTrips && <div style={{ ...styles.muted, marginTop: 16 }}>Finding trips…</div>}
-            {trips?.length === 0 && <div style={{ ...styles.muted, marginTop: 16 }}>No trips found. Try a different destination.</div>}
+            {loadingTrips && (
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
+                Finding trips…
+              </div>
+            )}
+            {trips?.length === 0 && (
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
+                No trips found. Try a different destination.
+              </div>
+            )}
 
             {trips?.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: 'var(--sidebar-muted)', marginBottom: 8 }}>Pick a trip:</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em' }}>
+                  Pick a trip
+                </div>
                 {trips.slice(0, 4).map((trip, i) => {
                   const leg = trip.legs[0];
                   const secsUntil = Math.round((new Date(trip.departs) - Date.now()) / 1000);
@@ -482,13 +551,32 @@ export default function ChildView() {
                     : secsUntil < 60 ? `${secsUntil}s`
                     : secsUntil < 3600 ? `${Math.round(secsUntil/60)} min`
                     : new Date(trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+                  const isFirst = i === 0;
                   return (
-                    <button key={i} style={styles.tripCard} onClick={() => confirmTrip(trip)}>
+                    <button key={i} style={{
+                      ...styles.tripCard,
+                      background: isFirst ? 'rgba(133,169,71,0.12)' : 'rgba(255,255,255,0.04)',
+                      border: isFirst ? '1.5px solid rgba(133,169,71,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    }} onClick={() => confirmTrip(trip)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={styles.badge}>{MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}</span>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2' }}>{label}</span>
+                        <span style={{
+                          ...styles.badge,
+                          background: isFirst ? 'rgba(133,169,71,0.25)' : 'rgba(255,255,255,0.08)',
+                          color: isFirst ? '#85A947' : 'rgba(255,255,255,0.6)',
+                          border: isFirst ? '1px solid rgba(133,169,71,0.4)' : '1px solid rgba(255,255,255,0.12)',
+                        }}>
+                          {MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}
+                        </span>
+                        <span style={{ fontSize: 17, fontWeight: 800, color: isFirst ? '#fff' : '#EFE3C2' }}>
+                          {label}
+                        </span>
+                        {isFirst && (
+                          <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#85A947', background: 'rgba(133,169,71,0.15)', padding: '2px 8px', borderRadius: 6 }}>
+                            Next
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--sidebar-muted)', marginTop: 4 }}>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 5 }}>
                         {new Date(trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
                         {' '}· {trip.durationMin} min
                         {trip.changes > 0 ? ` · ${trip.changes} change${trip.changes > 1 ? 's' : ''}` : ' · Direct'}
@@ -500,6 +588,16 @@ export default function ChildView() {
             )}
           </div>
         )}
+
+        {savedDests.length > 0 && sharing && (
+          <button onClick={stop} style={{
+            ...styles.btn, marginTop: 20, fontSize: 13, padding: '12px',
+            background: 'rgba(220,38,38,0.1)', color: '#f87171',
+            border: '1.5px solid rgba(220,38,38,0.25)', boxShadow: 'none',
+          }}>
+            Stop sharing location
+          </button>
+        )}
       </div>
     </div>
   );
@@ -507,45 +605,58 @@ export default function ChildView() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: 'var(--sidebar-bg)', display: 'flex',
-    flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-    padding: '40px 20px', fontFamily: 'var(--font-ui)',
+    minHeight: '100vh',
+    background: 'linear-gradient(160deg, #0d1b2a 0%, #0f2318 100%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'flex-start', padding: '52px 20px 40px',
+    fontFamily: 'var(--font-ui)',
   },
-  card: { width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' },
-  heading: { fontSize: 24, fontWeight: 800, color: '#EFE3C2', marginBottom: 8 },
-  muted: { fontSize: 14, color: 'var(--sidebar-muted)', lineHeight: 1.5 },
-  error: { color: '#f87171', fontSize: 13, marginTop: 12 },
+  card: {
+    width: '100%', maxWidth: 380,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+  },
   infoCard: {
-    background: 'rgba(133,169,71,0.08)', border: '1px solid rgba(133,169,71,0.2)',
-    borderRadius: 12, padding: '14px 16px', textAlign: 'left', width: '100%',
+    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 14, padding: '14px 16px', textAlign: 'left', width: '100%',
   },
-  infoLabel: { fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--sidebar-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 },
-  btn: { width: '100%', padding: '16px', fontSize: 16, fontWeight: 700, borderRadius: 14, cursor: 'pointer', border: 'none', marginTop: 20 },
-  btnStart: { background: '#85A947', color: '#123524' },
-  btnStop:  { background: 'rgba(220,38,38,0.15)', color: '#f87171', border: '2px solid rgba(220,38,38,0.3)' },
+  infoLabel: {
+    fontSize: 10, fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.35)',
+    letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 5,
+  },
+  btn: {
+    width: '100%', padding: '16px', fontSize: 16, fontWeight: 800,
+    borderRadius: 16, cursor: 'pointer', marginTop: 20,
+  },
+  ghostBtn: {
+    fontSize: 12, background: 'none', border: 'none',
+    color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontWeight: 600,
+  },
   input: {
-    width: '100%', padding: '12px 14px', fontSize: 15,
-    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(133,169,71,0.3)',
-    borderRadius: 10, color: '#EFE3C2', outline: 'none', fontFamily: 'var(--font-ui)', boxSizing: 'border-box',
+    width: '100%', padding: '14px 16px', fontSize: 15,
+    background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)',
+    borderRadius: 12, color: '#fff', outline: 'none',
+    fontFamily: 'var(--font-ui)', boxSizing: 'border-box',
   },
   dropdown: {
     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-    background: '#1a2e1a', border: '1px solid rgba(133,169,71,0.3)',
-    borderRadius: 10, overflow: 'hidden', marginTop: 4,
+    background: '#0e1f14', border: '1px solid rgba(133,169,71,0.3)',
+    borderRadius: 12, overflow: 'hidden', marginTop: 4,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
   },
   dropdownItem: {
-    display: 'block', width: '100%', padding: '12px 14px', textAlign: 'left',
+    display: 'block', width: '100%', padding: '13px 16px', textAlign: 'left',
     fontSize: 14, color: '#EFE3C2', background: 'none', border: 'none',
-    borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
+    borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
+    fontFamily: 'var(--font-ui)',
   },
   tripCard: {
-    width: '100%', padding: '12px 14px', marginBottom: 8, textAlign: 'left',
-    background: 'rgba(133,169,71,0.08)', border: '1px solid rgba(133,169,71,0.2)',
-    borderRadius: 12, cursor: 'pointer',
+    width: '100%', padding: '14px 16px', marginBottom: 8, textAlign: 'left',
+    borderRadius: 14, cursor: 'pointer', fontFamily: 'var(--font-ui)',
+    transition: 'opacity 0.1s',
   },
   badge: {
-    display: 'inline-block', padding: '3px 8px', fontSize: 12, fontWeight: 700,
-    background: 'rgba(133,169,71,0.2)', color: '#85A947', borderRadius: 6,
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '4px 10px', fontSize: 12, fontWeight: 800,
+    borderRadius: 8,
   },
-  divider: { width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 24 },
 };
