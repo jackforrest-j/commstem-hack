@@ -27,8 +27,11 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
   const transferTol = prefs.transfer_tolerance ?? 1;
   const walkTolM    = prefs.walk_tolerance_m  ?? 500;
   const bufferMins  = prefs.buffer_minutes     ?? 5;
-  const allowedModes = prefs.allowed_modes || null; // null = all modes allowed
-  const speedMps    = WALK_SPEED_MPS[walkSpeed] || 1.33;
+  // Normalise to numbers — Supabase int[] can come back as strings
+  const allowedModes = prefs.allowed_modes?.length
+    ? prefs.allowed_modes.map(Number)
+    : null;
+  const speedMps = WALK_SPEED_MPS[walkSpeed] || 1.33;
 
   const scored = trips.map(trip => {
     const firstLeg = trip.legs?.[0];
@@ -36,9 +39,10 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
     let score = 0;
 
     // ── Hard filter: mode block ───────────────────────────────────────────
-    if (allowedModes && allowedModes.length > 0 && trip.legs) {
+    if (allowedModes && trip.legs) {
       for (const leg of trip.legs) {
-        if (leg.mode != null && !allowedModes.includes(leg.mode)) {
+        const legMode = leg.mode != null ? Number(leg.mode) : null;
+        if (legMode != null && !allowedModes.includes(legMode)) {
           score = -Infinity;
           break;
         }

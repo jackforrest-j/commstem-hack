@@ -92,9 +92,11 @@ export default function ProfileSetup() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
 
-  const toggleMode = (m) => setAllowedModes(prev => {
+  const toggleMode = (modes) => setAllowedModes(prev => {
+    const arr = Array.isArray(modes) ? modes : [modes];
     const base = prev || [];
-    const next = base.includes(m) ? base.filter(x => x !== m) : [...base, m];
+    const hasAll = arr.every(m => base.includes(m));
+    const next = hasAll ? base.filter(x => !arr.includes(x)) : [...new Set([...base, ...arr])];
     return next.length === 0 ? null : next;
   });
 
@@ -111,7 +113,7 @@ export default function ProfileSetup() {
         if (data.transfer_tolerance != null) setTransferTol(data.transfer_tolerance);
         if (data.walk_tolerance_m != null) setWalkTolM(data.walk_tolerance_m);
         if (data.buffer_minutes != null) setBufferMins(data.buffer_minutes);
-        setAllowedModes(data.allowed_modes || null);
+        setAllowedModes(data.allowed_modes?.length ? data.allowed_modes.map(Number) : null);
         if (data.fallback_preference) setFallbackPref(data.fallback_preference);
       });
     supabase.from('child_destinations').select('*').eq('parent_id', user.id).order('sort_order')
@@ -314,10 +316,10 @@ export default function ProfileSetup() {
     );
 
     const TRANSPORT_CHIPS = [
-      { mode: 1, label: 'Train', emoji: '🚆' },
-      { mode: 5, label: 'Bus',   emoji: '🚌' },
-      { mode: 4, label: 'Tram',  emoji: '🚊' },
-      { mode: 9, label: 'Ferry', emoji: '⛴️' },
+      { modes: [1],    label: 'Train', emoji: '🚆' },
+      { modes: [5, 7], label: 'Bus',   emoji: '🚌' },
+      { modes: [4],    label: 'Tram',  emoji: '🚊' },
+      { modes: [9],    label: 'Ferry', emoji: '⛴️' },
     ];
     const allActive = allowedModes === null;
 
@@ -369,10 +371,10 @@ export default function ProfileSetup() {
                 outline: allActive ? '2px solid #3E7B27' : '2px solid var(--border)',
                 color: allActive ? '#123524' : 'var(--text-primary)',
               }}>All modes</button>
-            {TRANSPORT_CHIPS.map(({ mode, label, emoji }) => {
-              const active = !allActive && (allowedModes || []).includes(mode);
+            {TRANSPORT_CHIPS.map(({ modes, label, emoji }) => {
+              const active = !allActive && modes.some(m => (allowedModes || []).includes(m));
               return (
-                <button key={mode} onClick={() => toggleMode(mode)} style={{
+                <button key={modes[0]} onClick={() => toggleMode(modes)} style={{
                   padding: '10px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                   background: active ? '#85A947' : 'var(--bg-surface)',
                   outline: active ? '2px solid #3E7B27' : '2px solid var(--border)',
