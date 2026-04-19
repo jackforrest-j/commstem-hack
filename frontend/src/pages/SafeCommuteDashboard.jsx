@@ -301,6 +301,14 @@ export default function SafeCommuteDashboard() {
           <div style={{ fontSize: 12, color: 'rgba(239,227,194,0.4)', marginTop: 8, textAlign: 'center' }}>
             This screen will update automatically when they connect
           </div>
+
+          <button onClick={() => navigate('/profile')} style={{
+            marginTop: 20, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            background: 'rgba(133,169,71,0.15)', color: '#85A947',
+            border: '1.5px solid rgba(133,169,71,0.35)', borderRadius: 10, cursor: 'pointer',
+          }}>
+            ⚙ Edit child profile
+          </button>
         </div>
       )}
 
