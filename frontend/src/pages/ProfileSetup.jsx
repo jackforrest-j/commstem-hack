@@ -362,7 +362,7 @@ export default function ProfileSetup() {
           ], bufferMins, v => setBufferMins(Number(v)))}
 
           {prefSection('Allowed transport modes')}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
             <button
               onClick={() => setAllowedModes(null)}
               style={{
@@ -383,8 +383,13 @@ export default function ProfileSetup() {
               );
             })}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, marginBottom: 4 }}>
-            Tap a mode to restrict to specific transport types. "All modes" means no restriction.
+          <div style={{
+            fontSize: 12, color: allActive ? 'var(--text-muted)' : '#85A947',
+            fontWeight: allActive ? 400 : 600, marginBottom: 4,
+          }}>
+            {allActive
+              ? 'Your child can use any transport mode.'
+              : `Your child can only use: ${TRANSPORT_CHIPS.filter(({ modes }) => modes.some(m => (allowedModes || []).includes(m))).map(c => c.label).join(', ')}. Other modes will be blocked.`}
           </div>
 
           {prefSection('If a service is very delayed')}
