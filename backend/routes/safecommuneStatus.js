@@ -32,15 +32,22 @@ router.get('/status', async (req, res) => {
     let state = manualState || (child ? 'ON_BUS' : 'WAITING');
     const nearest_stop = activeLeg?.from || '—';
 
+    const firstLeg = journey.legs[0];
+    const lastLeg  = journey.legs[journey.legs.length - 1];
+
     return res.json({
       state,
-      child:    child ? { lat: child.lat, lon: child.lon } : null,
-      vehicle:  null,
+      child:       child ? { lat: child.lat, lon: child.lon } : null,
+      vehicle:     null,
       eta_minutes,
       nearest_stop,
       line:        activeLeg?.line,
       nextDeparts: nextDeparture?.departs || null,
       isRealTime:  nextDeparture?.isRealTime || false,
+      originCoord: firstLeg?.fromCoord  || null,
+      originName:  firstLeg?.from       || null,
+      destCoord:   lastLeg?.toCoord     || null,
+      destName:    lastLeg?.to          || null,
       timestamp:   new Date().toISOString(),
       mode:        'live',
     });

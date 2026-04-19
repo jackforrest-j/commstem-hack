@@ -148,6 +148,8 @@ function parseJourneys(data) {
         fromStopId:   leg.origin?.id,
         fromCoord:    leg.origin?.coord,
         to:           leg.destination?.name,
+        toStopId:     leg.destination?.id,
+        toCoord:      leg.destination?.coord,
         departs:  pickTime(leg.origin?.departureTimePlanned, leg.origin?.departureTimeEstimated),
         arrives:  pickTime(leg.destination?.arrivalTimePlanned, leg.destination?.arrivalTimeEstimated),
         stopSequence: leg.stopSequence || [],

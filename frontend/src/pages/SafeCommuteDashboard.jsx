@@ -113,6 +113,9 @@ export default function SafeCommuteDashboard() {
   const childLng   = status?.child?.lon ?? INITIAL_VIEW.longitude;
   const childLat   = status?.child?.lat ?? INITIAL_VIEW.latitude;
   const liveMode   = status?.mode === 'live';
+  const originCoord = status?.originCoord;  // [lat, lon] from NSW API
+  const destCoord   = status?.destCoord;
+  const destName    = status?.destName;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
@@ -134,6 +137,26 @@ export default function SafeCommuteDashboard() {
               <div style={{ position: 'relative', width: 20, height: 20 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#2563eb', animation: 'ping 1.5s ease-out infinite' }} />
                 <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#2563eb', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
+              </div>
+            </Marker>
+          )}
+
+          {originCoord && (
+            <Marker longitude={originCoord[1]} latitude={originCoord[0]} anchor="bottom">
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24 }}>🚏</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: '#3E7B27', borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2 }}>Board here</div>
+              </div>
+            </Marker>
+          )}
+
+          {destCoord && (
+            <Marker longitude={destCoord[1]} latitude={destCoord[0]} anchor="bottom">
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24 }}>📍</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#123524', background: '#85A947', borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', marginTop: 2, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {destName?.split(',')[0]}
+                </div>
               </div>
             </Marker>
           )}

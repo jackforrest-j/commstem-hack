@@ -102,7 +102,7 @@ export default function ChildView() {
     debounceRef.current = setTimeout(async () => {
       const res = await fetch(`${API_BASE}/api/safecommute/stops?q=${encodeURIComponent(query)}`);
       const data = await res.json();
-      setStopResults(data.filter(s => s.type === 'stop').slice(0, 5));
+      setStopResults(Array.isArray(data) ? data.filter(s => s.type === 'stop').slice(0, 5) : []);
     }, 300);
   }, [query]);
 

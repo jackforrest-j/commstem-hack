@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { searchStops, nearbyStops, planTrip, planTripFromCoord, getDepartures } = require('../lib/nswTransport');
+const { sampleVehicles } = require('../lib/gtfsRealtime');
 const store = require('../lib/journeyStore');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -101,6 +102,25 @@ router.get('/departures', async (req, res) => {
   try {
     const departures = await getDepartures(stop);
     res.json(departures);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Debug: probe GTFS-RT vehicle positions + compare with active journey
+router.get('/debug/gtfs-probe', async (req, res) => {
+  try {
+    const samples = await sampleVehicles(10);
+    const journey = store.getJourney();
+    const activeLeg = journey?.legs?.find(l => l.tripCode || l.routeId);
+    res.json({
+      samples,
+      activeJourney: activeLeg ? {
+        tripCode: activeLeg.tripCode,
+        routeId:  activeLeg.routeId,
+        line:     activeLeg.line,
+      } : null,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
