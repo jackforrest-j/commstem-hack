@@ -71,7 +71,10 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
     return { trip, score };
   });
 
-  return scored.sort((a, b) => b.score - a.score).map(s => s.trip);
+  return scored
+    .filter(s => s.score > -Infinity)
+    .sort((a, b) => b.score - a.score)
+    .map(s => s.trip);
 }
 
 module.exports = { scoreAndRankTrips };
