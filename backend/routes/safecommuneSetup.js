@@ -19,9 +19,12 @@ function allowedModeLabels(modes) {
 function filterTripsByMode(trips, allowedModes) {
   if (!allowedModes?.length) return trips;
   const allowed = new Set(allowedModes.map(Number));
-  return trips.filter(trip =>
+  const before = trips.length;
+  const filtered = trips.filter(trip =>
     trip.legs.every(leg => leg.mode == null || allowed.has(Number(leg.mode)))
   );
+  console.log(`[filterTripsByMode] allowed=${[...allowed]} | before=${before} after=${filtered.length} | trip modes:`, trips.map(t => t.legs.map(l => l.mode)));
+  return filtered;
 }
 
 async function fetchChildPrefs(parentId) {
@@ -30,6 +33,7 @@ async function fetchChildPrefs(parentId) {
     const { data } = await supabase.from('children')
       .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes, fallback_preference')
       .eq('parent_id', parentId).single();
+    console.log(`[fetchChildPrefs] parentId=${parentId} allowed_modes=${JSON.stringify(data?.allowed_modes)}`);
     return data || null;
   } catch { return null; }
 }
