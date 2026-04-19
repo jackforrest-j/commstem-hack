@@ -238,6 +238,16 @@ export default function ChildView() {
     setBoardedState('ON_BUS');
   };
 
+  const finishJourney = async () => {
+    await fetch(`${API_BASE}/api/safecommute/state`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'ARRIVED', parentId }),
+    });
+    setJourney(null);
+    setDestination(null);
+    setBoardedState(null);
+  };
+
   // ── Journey confirmed: fullscreen map ────────────────────────────────────
   if (journey) {
     const leg         = journey.legs[0];
@@ -488,16 +498,30 @@ export default function ChildView() {
               )}
             </div>
           ) : (
-            <div style={{
-              padding: '14px 16px', borderRadius: 16, textAlign: 'center',
-              background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)',
-            }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#34D399' }}>
-                ✓ On the way!
+            <div>
+              <div style={{
+                padding: '14px 16px', borderRadius: 16, marginBottom: 12,
+                background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)',
+              }}>
+                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'rgba(52,211,153,0.6)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Get off at
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#34D399' }}>
+                  {journey.legs[journey.legs.length - 1]?.to || destination?.name?.split(',')[0]}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+                  Arriving {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>
-                Arriving {new Date(journey.arrives).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
-              </div>
+              <button onClick={finishJourney} style={{
+                width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                background: 'linear-gradient(135deg, #34D399 0%, #059669 100%)',
+                color: '#fff', border: 'none', borderRadius: 16, cursor: 'pointer',
+                boxShadow: '0 4px 20px rgba(52,211,153,0.4)',
+                letterSpacing: '0.01em',
+              }}>
+                🎉 Finished journey!
+              </button>
             </div>
           )}
 
@@ -508,7 +532,7 @@ export default function ChildView() {
             }
             <button
               style={styles.ghostBtn}
-              onClick={() => { setJourney(null); setDestination(null); setTrips(null); setQuery(''); setBoardedState(null); }}
+              onClick={() => { setJourney(null); setDestination(null); setBoardedState(null); }}
             >
               ← Change trip
             </button>
