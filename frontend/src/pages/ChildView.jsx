@@ -68,6 +68,7 @@ export default function ChildView() {
   const [liveStatus, setLiveStatus]     = useState(null);
   const [vehicles, setVehicles]         = useState([]);
   const [savedDests, setSavedDests]     = useState([]);
+  const [loadingDest, setLoadingDest]   = useState(null); // dest id being auto-confirmed
   const watchRef    = useRef(null);
   const coordsRef   = useRef(null);
   const debounceRef = useRef(null);
@@ -394,9 +395,39 @@ export default function ChildView() {
   }
 
   // ── Main screen ───────────────────────────────────────────────────────────
-  const goTo = (dest) => {
+  const goTo = async (dest) => {
+    setLoadingDest(dest.id);
+    const stop = { id: dest.stop_id, name: dest.stop_name, coord: dest.stop_coord };
+    setDestination(stop);
     if (!sharing) start();
-    selectDestination({ id: dest.stop_id, name: dest.stop_name, coord: dest.stop_coord });
+
+    // Try to get a GPS fix (up to 3s) for better trip planning
+    let loc = coordsRef.current;
+    if (!loc && navigator.geolocation) {
+      loc = await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+          () => resolve(null),
+          { timeout: 3000, maximumAge: 10000, enableHighAccuracy: true },
+        );
+      });
+    }
+
+    try {
+      const url = loc
+        ? `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}`
+        : `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}`;
+      const res = await fetch(url);
+      const fetchedTrips = await res.json();
+      if (Array.isArray(fetchedTrips) && fetchedTrips.length > 0) {
+        await confirmTrip(fetchedTrips[0]);
+      } else {
+        setTrips(fetchedTrips || []);
+      }
+    } catch {
+      setTrips([]);
+    }
+    setLoadingDest(null);
   };
 
   return (
@@ -432,30 +463,34 @@ export default function ChildView() {
           }}>
             {savedDests.map((d, i) => {
               const c = DEST_COLORS[i % DEST_COLORS.length];
+              const isLoading = loadingDest === d.id;
               return (
                 <button
                   key={d.id}
                   className="dest-btn"
-                  onClick={() => goTo(d)}
+                  onClick={() => !loadingDest && goTo(d)}
+                  disabled={!!loadingDest}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
-                    transition: 'transform 0.15s',
+                    background: 'none', border: 'none', cursor: loadingDest ? 'default' : 'pointer',
+                    padding: '4px 0', transition: 'transform 0.15s',
+                    opacity: loadingDest && !isLoading ? 0.4 : 1,
                   }}
                 >
                   <div style={{
                     width: 76, height: 76, borderRadius: '50%',
-                    background: c.bg,
+                    background: isLoading ? c.border : c.bg,
                     border: `2px solid ${c.border}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 32,
-                    boxShadow: `0 4px 20px ${c.glow}`,
-                    transition: 'box-shadow 0.15s, transform 0.15s',
+                    fontSize: isLoading ? 22 : 32,
+                    boxShadow: isLoading ? `0 4px 28px ${c.glow}, 0 0 0 4px ${c.bg}` : `0 4px 20px ${c.glow}`,
+                    transition: 'all 0.2s',
+                    animation: isLoading ? 'pulse 1s ease-in-out infinite' : 'none',
                   }}>
-                    {d.emoji}
+                    {isLoading ? '⏳' : d.emoji}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: c.text, textAlign: 'center', lineHeight: 1.2 }}>
-                    {d.label}
+                  <span style={{ fontSize: 13, fontWeight: 700, color: isLoading ? '#fff' : c.text, textAlign: 'center', lineHeight: 1.2 }}>
+                    {isLoading ? 'Finding trip…' : d.label}
                   </span>
                 </button>
               );
