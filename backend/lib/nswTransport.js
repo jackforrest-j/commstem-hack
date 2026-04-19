@@ -109,6 +109,26 @@ async function planTripFromCoord(lat, lon, destinationId) {
   return parseJourneys(data);
 }
 
+// Plan trip from a GPS coordinate to a destination coordinate (address)
+async function planTripFromCoordToCoord(fromLat, fromLon, toLat, toLon) {
+  const { date, time } = sydneyDateTime();
+  const params = new URLSearchParams({
+    outputFormat: 'rapidJSON',
+    TfNSWTR: 'true',
+    coordOutputFormat: 'EPSG:4326',
+    depArrMacro: 'dep',
+    itdDate: date,
+    itdTime: time,
+    type_origin: 'coord',
+    name_origin: `${fromLon}:${fromLat}:EPSG:4326`,
+    type_destination: 'coord',
+    name_destination: `${toLon}:${toLat}:EPSG:4326`,
+    calcNumberOfTrips: '5',
+  });
+  const data = await nswFetch('trip', params);
+  return parseJourneys(data);
+}
+
 function parseJourneys(data) {
   if (data.error || data.errorCode) {
     console.error('[NSW trip] API error:', data.error || data.errorCode, data.errorText);
@@ -185,4 +205,4 @@ async function getDepartures(stopId) {
   }));
 }
 
-module.exports = { searchStops, nearbyStops, planTrip, planTripFromCoord, getDepartures };
+module.exports = { searchStops, nearbyStops, planTrip, planTripFromCoord, planTripFromCoordToCoord, getDepartures };

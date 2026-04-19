@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const WALK_OPTIONS = [
   { value: 'slow',   label: 'Slow',   emoji: '🐢', desc: '~60 m/min' },
@@ -16,12 +17,13 @@ const PRESET_DESTINATIONS = [
   { label: 'School', emoji: '🏫' },
 ];
 
-function StopSearch({ placeholder, onSelect, initial }) {
-  const [query, setQuery]   = useState(initial?.stop_name || '');
+// Address search using Mapbox Geocoding — returns any address, not just transit stops
+function AddressSearch({ placeholder, onSelect, initial }) {
+  const [query, setQuery]     = useState(initial?.name || '');
   const [results, setResults] = useState([]);
   const timer = useRef(null);
 
-  useEffect(() => { setQuery(initial?.stop_name || ''); }, [initial]);
+  useEffect(() => { setQuery(initial?.name || ''); }, [initial]);
 
   const onChange = e => {
     const q = e.target.value;
@@ -29,10 +31,14 @@ function StopSearch({ placeholder, onSelect, initial }) {
     clearTimeout(timer.current);
     if (q.length < 2) { setResults([]); return; }
     timer.current = setTimeout(async () => {
+      if (!MAPBOX_TOKEN) return;
       try {
-        const res  = await fetch(`${API_BASE}/api/safecommute/stops?q=${encodeURIComponent(q)}`);
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
+          `?country=AU&proximity=151.2093,-33.8688&limit=5&access_token=${MAPBOX_TOKEN}`
+        );
         const data = await res.json();
-        setResults(Array.isArray(data) ? data.slice(0, 5) : []);
+        setResults(data.features || []);
       } catch { /* ignore */ }
     }, 300);
   };
@@ -48,15 +54,20 @@ function StopSearch({ placeholder, onSelect, initial }) {
       />
       {results.length > 0 && (
         <div style={dropdownStyle}>
-          {results.map(s => (
+          {results.map(f => (
             <div
-              key={s.id}
-              onMouseDown={() => { onSelect(s); setQuery(s.name); setResults([]); }}
+              key={f.id}
+              onMouseDown={() => {
+                const [lon, lat] = f.center;
+                onSelect({ id: null, name: f.place_name, coord: [lat, lon] });
+                setQuery(f.place_name);
+                setResults([]);
+              }}
               style={dropItemStyle}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              🚏 {s.name}
+              📍 {f.place_name}
             </div>
           ))}
         </div>
@@ -102,9 +113,9 @@ export default function ProfileSetup() {
         for (const d of data) {
           const pi = presetLabels.indexOf(d.label);
           if (pi !== -1) {
-            updatedPresets[pi] = { ...updatedPresets[pi], stop: { id: d.stop_id, name: d.stop_name, coord: d.stop_coord } };
+            updatedPresets[pi] = { ...updatedPresets[pi], stop: { id: d.stop_id || null, name: d.stop_name, coord: d.stop_coord } };
           } else {
-            loadedExtras.push({ label: d.label, emoji: d.emoji, stop: { id: d.stop_id, name: d.stop_name, coord: d.stop_coord } });
+            loadedExtras.push({ label: d.label, emoji: d.emoji, stop: { id: d.stop_id || null, name: d.stop_name, coord: d.stop_coord } });
           }
         }
         setDestinations(updatedPresets);
@@ -136,7 +147,7 @@ export default function ProfileSetup() {
       parent_id:  user.id,
       label:      d.label,
       emoji:      d.emoji,
-      stop_id:    d.stop.id,
+      stop_id:    d.stop.id || null,   // null for address destinations
       stop_name:  d.stop.name,
       stop_coord: d.stop.coord || [],
       sort_order: i,
@@ -188,9 +199,9 @@ export default function ProfileSetup() {
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{dest.label}</span>
                 {dest.stop && <span style={{ fontSize: 11, color: '#85A947', marginLeft: 'auto' }}>✓ Set</span>}
               </div>
-              <StopSearch
+              <AddressSearch
                 placeholder={`Search for ${dest.label.toLowerCase()} stop…`}
-                initial={dest.stop ? { stop_name: dest.stop.name } : null}
+                initial={dest.stop ? { name: dest.stop.name } : null}
                 onSelect={s => setDestinations(ds => ds.map((d, idx) => idx === i ? { ...d, stop: s } : d))}
               />
             </div>
@@ -220,9 +231,9 @@ export default function ProfileSetup() {
                 />
                 <button onClick={() => removeExtra(i)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>✕</button>
               </div>
-              <StopSearch
+              <AddressSearch
                 placeholder="Search for stop…"
-                initial={ex.stop ? { stop_name: ex.stop.name } : null}
+                initial={ex.stop ? { name: ex.stop.name } : null}
                 onSelect={s => updateExtra(i, 'stop', s)}
               />
             </div>

@@ -464,7 +464,8 @@ export default function ChildView() {
   // ── Main screen ───────────────────────────────────────────────────────────
   const goTo = async (dest) => {
     setLoadingDest(dest.id);
-    const stop = { id: dest.stop_id, name: dest.stop_name, coord: dest.stop_coord };
+    const isAddress = !dest.stop_id;
+    const stop = { id: dest.stop_id || null, name: dest.stop_name, coord: dest.stop_coord };
     setDestination(stop);
     if (!sharing) start();
 
@@ -481,9 +482,18 @@ export default function ChildView() {
     }
 
     try {
-      const url = loc
-        ? `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}`
-        : `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}`;
+      let url;
+      if (loc && isAddress && stop.coord?.length >= 2) {
+        // Address destination: coord-to-coord routing
+        const [toLat, toLon] = stop.coord;
+        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&toLat=${toLat}&toLon=${toLon}`;
+      } else if (loc && stop.id) {
+        url = `${API_BASE}/api/safecommute/trips/from-coord?lat=${loc.lat}&lon=${loc.lon}&to=${stop.id}`;
+      } else if (stop.id) {
+        url = `${API_BASE}/api/safecommute/trips?from=${nearestStop?.id || ''}&to=${stop.id}`;
+      } else {
+        setTrips([]); setLoadingDest(null); return;
+      }
       const res = await fetch(url);
       const fetchedTrips = await res.json();
       if (Array.isArray(fetchedTrips) && fetchedTrips.length > 0) {

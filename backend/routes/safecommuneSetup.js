@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { searchStops, nearbyStops, planTrip, planTripFromCoord, getDepartures } = require('../lib/nswTransport');
+const { searchStops, nearbyStops, planTrip, planTripFromCoord, planTripFromCoordToCoord, getDepartures } = require('../lib/nswTransport');
 const { sampleVehicles, getNearbyVehicles } = require('../lib/gtfsRealtime');
 const store = require('../lib/journeyStore');
 const { createClient } = require('@supabase/supabase-js');
@@ -83,12 +83,19 @@ router.get('/trips', async (req, res) => {
   }
 });
 
-// Plan trips from GPS coordinates to a destination stop
+// Plan trips from GPS coordinates to a destination stop ID or coordinate
 router.get('/trips/from-coord', async (req, res) => {
-  const { lat, lon, to } = req.query;
-  if (!lat || !lon || !to) return res.status(400).json({ error: 'lat, lon and to required' });
+  const { lat, lon, to, toLat, toLon } = req.query;
+  if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
   try {
-    const trips = await planTripFromCoord(parseFloat(lat), parseFloat(lon), to);
+    let trips;
+    if (toLat && toLon) {
+      trips = await planTripFromCoordToCoord(parseFloat(lat), parseFloat(lon), parseFloat(toLat), parseFloat(toLon));
+    } else if (to) {
+      trips = await planTripFromCoord(parseFloat(lat), parseFloat(lon), to);
+    } else {
+      return res.status(400).json({ error: 'either to (stop ID) or toLat+toLon required' });
+    }
     res.json(trips);
   } catch (e) {
     res.status(500).json({ error: e.message });
