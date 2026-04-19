@@ -247,7 +247,11 @@ export default function ChildView() {
                 color: depPast ? '#f87171' : '#85A947',
                 animation: depSecs !== null && depSecs > 0 && depSecs < 60 ? 'pulse 1s infinite' : 'none',
               }}>
-                {depPast ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : fmtCountdown(depSecs)}
+                {depPast || depSecs === null
+                  ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+                  : depSecs >= 3600
+                    ? new Date(journey.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+                    : fmtCountdown(depSecs)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>{journey.durationMin} min ride</div>
             </div>
@@ -340,7 +344,10 @@ export default function ChildView() {
                 {trips.slice(0, 4).map((trip, i) => {
                   const leg = trip.legs[0];
                   const secsUntil = Math.round((new Date(trip.departs) - Date.now()) / 1000);
-                  const label = secsUntil <= 0 ? 'Now' : secsUntil < 60 ? `${secsUntil}s` : `${Math.round(secsUntil/60)} min`;
+                  const label = secsUntil <= 0 ? 'Now'
+                    : secsUntil < 60 ? `${secsUntil}s`
+                    : secsUntil < 3600 ? `${Math.round(secsUntil/60)} min`
+                    : new Date(trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
                   return (
                     <button key={i} style={styles.tripCard} onClick={() => confirmTrip(trip)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

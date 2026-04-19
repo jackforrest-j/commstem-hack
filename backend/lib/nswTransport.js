@@ -128,6 +128,7 @@ function parseJourneys(data) {
 
     // Prefer real-time estimated times over planned
     const deptTime = pickTime(first.origin?.departureTimePlanned, first.origin?.departureTimeEstimated);
+    console.log('[NSW trip] raw departureTimePlanned:', first.origin?.departureTimePlanned, '| estimated:', first.origin?.departureTimeEstimated, '| picked:', deptTime);
     const arrTime  = pickTime(last.destination?.arrivalTimePlanned, last.destination?.arrivalTimeEstimated);
 
     const deptMs      = deptTime ? new Date(deptTime).getTime() : 0;
@@ -156,7 +157,7 @@ function parseJourneys(data) {
         coords:   leg.coords || [],
       })),
     };
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => new Date(a.departs) - new Date(b.departs));
 }
 
 // Get live departures from a stop — replaces GTFS-RT vehicle tracking
