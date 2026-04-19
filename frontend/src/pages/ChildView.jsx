@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '../lib/supabase';
@@ -54,6 +54,9 @@ function fmtCountdown(secs) {
 }
 
 export default function ChildView() {
+  // Read parent ID from URL: /child?p=<parentId>
+  const parentId = useMemo(() => new URLSearchParams(window.location.search).get('p') || '', []);
+
   const [sharing, setSharing]           = useState(false);
   const [coords, setCoords]             = useState(null);
   const [gpsError, setGpsError]         = useState('');
@@ -80,7 +83,7 @@ export default function ChildView() {
   useEffect(() => {
     if (!journey) return;
     const pollStatus = () =>
-      fetch(`${API_BASE}/api/safecommute/status`)
+      fetch(`${API_BASE}/api/safecommute/status?parentId=${parentId}`)
         .then(r => r.json()).then(d => setLiveStatus(d)).catch(() => {});
     pollStatus();
     const sid = setInterval(pollStatus, 10000);
@@ -92,7 +95,7 @@ export default function ChildView() {
     const pollVehicles = () => {
       const loc = coordsRef.current;
       if (!loc) return;
-      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${loc.lat}&lon=${loc.lon}`)
+      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${loc.lat}&lon=${loc.lon}&parentId=${parentId}`)
         .then(r => r.json())
         .then(v => Array.isArray(v) && setVehicles(v))
         .catch(() => {});
@@ -147,7 +150,7 @@ export default function ChildView() {
         coordsRef.current = loc;
         fetch(`${API_BASE}/api/safecommute/child-location`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon }),
+          body: JSON.stringify({ lat, lon, parentId }),
         }).then(r => { if (!r.ok) setGpsError(`Server error: ${r.status}`); else setGpsError(''); })
           .catch(e => setGpsError(`Can't reach server: ${e.message}`));
         if (!coordsRef.nearestFetched) {
@@ -214,19 +217,19 @@ export default function ChildView() {
   const confirmTrip = async (trip) => {
     await fetch(`${API_BASE}/api/safecommute/journey`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(trip),
+      body: JSON.stringify({ ...trip, parentId }),
     });
     setJourney(trip);
     await fetch(`${API_BASE}/api/safecommute/state`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: 'WAITING' }),
+      body: JSON.stringify({ state: 'WAITING', parentId }),
     });
   };
 
   const boardBus = async () => {
     await fetch(`${API_BASE}/api/safecommute/state`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: 'ON_BUS' }),
+      body: JSON.stringify({ state: 'ON_BUS', parentId }),
     });
     setBoardedState('ON_BUS');
   };
@@ -527,6 +530,18 @@ export default function ChildView() {
     }
     setLoadingDest(null);
   };
+
+  if (!parentId) {
+    return (
+      <div style={{ ...styles.page, justifyContent: 'center', textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 20 }}>🔗</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 12 }}>Link not found</div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, maxWidth: 280 }}>
+          Ask your parent to share their SafeCommute link with you — it will open this app automatically.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>

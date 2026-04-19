@@ -65,7 +65,7 @@ export default function SafeCommuteDashboard() {
   const prevStateRef  = useRef(null);
   const prevChildRef  = useRef(null);
   const mapRef        = useRef(null);
-  const childLink     = `${window.location.origin}/child`;
+  const childLink     = user ? `${window.location.origin}/child?p=${user.id}` : '';
 
   // Load child name
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function SafeCommuteDashboard() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res  = await fetch(`${API_BASE}/api/safecommute/status`);
+        const res  = await fetch(`${API_BASE}/api/safecommute/status?parentId=${user?.id || ''}`);
         const data = await res.json();
         setStatus(data);
 
@@ -117,7 +117,7 @@ export default function SafeCommuteDashboard() {
     if (!status?.child) return;
     const { lat, lon } = status.child;
     const poll = () =>
-      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${lat}&lon=${lon}`)
+      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${lat}&lon=${lon}&parentId=${user?.id || ''}`)
         .then(r => r.json())
         .then(v => Array.isArray(v) && setVehicles(v))
         .catch(() => {});

@@ -7,8 +7,9 @@ const { getDelayForJourney } = require('../lib/gtfsRealtime');
 const store               = require('../lib/journeyStore');
 
 router.get('/status', async (req, res) => {
-  const journey      = store.getJourney();
-  const storedChild  = store.getChildLocation();
+  const { parentId } = req.query;
+  const journey      = store.getJourney(parentId);
+  const storedChild  = store.getChildLocation(parentId);
 
   // ── Real mode: active journey set ────────────────────────────────────────
   if (journey) {
@@ -32,7 +33,7 @@ router.get('/status', async (req, res) => {
     // GTFS-RT: delay (vehicle positions now fetched per-map via /vehicles/nearby)
     const delaySecs = await getDelayForJourney(activeLeg).catch(() => null);
 
-    const manualState = store.getManualState();
+    const manualState = store.getManualState(parentId);
     let state = manualState || (child ? 'ON_BUS' : 'WAITING');
     const nearest_stop = activeLeg?.from || '—';
 
@@ -69,7 +70,7 @@ router.get('/status', async (req, res) => {
   // ── Demo mode: no journey set, use mock simulation ────────────────────────
   const phase   = req.query.phase || 'WAITING';
   const vehicle = getBusPosition();
-  const child   = storedChild || getChildPosition(phase);
+  const child   = storedChild || null;
   const { state, nearest_stop } = getJourneyState(child, vehicle, ROUTE_STOPS);
 
   const loopFraction   = (vehicle.segment_index + vehicle.progress) / (ROUTE_STOPS.length - 1);

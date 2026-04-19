@@ -116,9 +116,9 @@ router.get('/departures', async (req, res) => {
 
 // Nearby vehicles — used by both child and parent map
 router.get('/vehicles/nearby', async (req, res) => {
-  const { lat, lon } = req.query;
+  const { lat, lon, parentId } = req.query;
   if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
-  const journey   = store.getJourney();
+  const journey   = store.getJourney(parentId);
   const activeLeg = journey?.legs?.find(l => l.mode != null);
   const mode      = activeLeg?.mode ?? 5;
   try {
@@ -135,7 +135,7 @@ router.get('/vehicles/nearby', async (req, res) => {
 router.get('/debug/gtfs-probe', async (req, res) => {
   try {
     const samples = await sampleVehicles(10);
-    const journey = store.getJourney();
+    const journey = store.getJourney(req.query.parentId);
     const activeLeg = journey?.legs?.find(l => l.tripCode || l.routeId);
     res.json({
       samples,
@@ -152,15 +152,15 @@ router.get('/debug/gtfs-probe', async (req, res) => {
 
 // Save selected journey
 router.post('/journey', (req, res) => {
-  const { legs, departs, arrives, durationMin } = req.body;
+  const { legs, departs, arrives, durationMin, parentId } = req.body;
   if (!legs?.length) return res.status(400).json({ error: 'legs required' });
-  store.setJourney({ legs, departs, arrives, durationMin });
+  store.setJourney(parentId, { legs, departs, arrives, durationMin });
   res.json({ ok: true });
 });
 
 // Get active journey
 router.get('/journey', (req, res) => {
-  res.json(store.getJourney() || null);
+  res.json(store.getJourney(req.query.parentId) || null);
 });
 
 // Parent sends destination to child's device via Supabase
@@ -178,17 +178,17 @@ router.post('/set-destination', async (req, res) => {
 
 // Child manually sets journey state (ON_BUS, WAITING, ARRIVED)
 router.post('/state', (req, res) => {
-  const { state } = req.body;
+  const { state, parentId } = req.body;
   if (!['WAITING', 'ON_BUS', 'ARRIVED'].includes(state)) return res.status(400).json({ error: 'invalid state' });
-  store.setManualState(state);
+  store.setManualState(parentId, state);
   res.json({ ok: true });
 });
 
 // Receive child GPS from device
 router.post('/child-location', (req, res) => {
-  const { lat, lon } = req.body;
+  const { lat, lon, parentId } = req.body;
   if (lat == null || lon == null) return res.status(400).json({ error: 'lat and lon required' });
-  store.setChildLocation({ lat: parseFloat(lat), lon: parseFloat(lon), ts: Date.now() });
+  store.setChildLocation(parentId, { lat: parseFloat(lat), lon: parseFloat(lon), ts: Date.now() });
   res.json({ ok: true });
 });
 
