@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { supabase } from '../lib/supabase';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -57,6 +58,7 @@ export default function ChildView() {
   const [boardedState, setBoardedState] = useState(null);
   const [liveStatus, setLiveStatus]     = useState(null);
   const [vehicles, setVehicles]         = useState([]);
+  const [savedDests, setSavedDests]     = useState([]);
   const watchRef    = useRef(null);
   const coordsRef   = useRef(null);
   const debounceRef = useRef(null);
@@ -88,6 +90,12 @@ export default function ChildView() {
     const vid = setInterval(pollVehicles, 15000);
     return () => clearInterval(vid);
   }, [journey]);
+
+  // Load parent's saved destinations from Supabase (anon read allowed)
+  useEffect(() => {
+    supabase.from('child_destinations').select('*').order('sort_order')
+      .then(({ data }) => { if (data?.length) setSavedDests(data); });
+  }, []);
 
   const start = () => {
     if (!navigator.geolocation) { setGpsError('GPS not available'); return; }
@@ -376,6 +384,27 @@ export default function ChildView() {
           <div style={{ width: '100%', marginTop: 32 }}>
             <div style={styles.divider} />
             <div style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', marginBottom: 12 }}>Where are you going?</div>
+
+            {/* Quick-destination buttons from parent's saved places */}
+            {savedDests.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {savedDests.map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => selectDestination({ id: d.stop_id, name: d.stop_name, coord: d.stop_coord })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '9px 14px', borderRadius: 10, border: '1.5px solid rgba(133,169,71,0.35)',
+                      background: 'rgba(133,169,71,0.1)', color: '#EFE3C2',
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    {d.emoji} {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div style={{ position: 'relative' }}>
               <input
                 value={query}

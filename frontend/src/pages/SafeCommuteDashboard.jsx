@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Map, { Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '../context/AuthContext';
@@ -47,7 +48,8 @@ function ShareLink({ childLink, copied, onCopy }) {
 }
 
 export default function SafeCommuteDashboard() {
-  const { user } = useAuth();
+  const { user }   = useAuth();
+  const navigate   = useNavigate();
   const [childName, setChildName] = useState('');
   const [status, setStatus]       = useState(null);
   const [vehicles, setVehicles]   = useState([]);
@@ -245,8 +247,14 @@ export default function SafeCommuteDashboard() {
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(239,227,194,0.7)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
             SafeCommute {liveMode && '· Live'}
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2' }}>
-            {childName ? `${childName}'s Journey` : 'Your child\'s journey'}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#EFE3C2' }}>
+              {childName ? `${childName}'s Journey` : 'Your child\'s journey'}
+            </div>
+            <button onClick={() => navigate('/profile')} style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8,
+              padding: '7px 12px', fontSize: 13, color: '#EFE3C2', cursor: 'pointer',
+            }}>⚙ Profile</button>
           </div>
         </div>
       )}

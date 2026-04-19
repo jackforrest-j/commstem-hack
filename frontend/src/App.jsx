@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import AccountSetup from './pages/AccountSetup';
 import SafeCommuteDashboard from './pages/SafeCommuteDashboard';
 import RouteSetup from './pages/RouteSetup';
+import ProfileSetup from './pages/ProfileSetup';
 import ChildView from './pages/ChildView';
 
 // Wraps the parent dashboard — redirects to login if not authed,
@@ -37,6 +38,7 @@ function AppRoutes() {
       <Route path="/child"          element={<ChildView />} />
       <Route path="/safecommute"    element={<RequireSetup><SafeCommuteDashboard /></RequireSetup>} />
       <Route path="/setup"          element={<RequireSetup><RouteSetup /></RequireSetup>} />
+      <Route path="/profile"        element={<RequireSetup><ProfileSetup /></RequireSetup>} />
     </Routes>
   );
 }
