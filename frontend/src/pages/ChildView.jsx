@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import Map, { Marker } from 'react-map-gl';
+import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '../lib/supabase';
 
@@ -69,9 +69,11 @@ export default function ChildView() {
   const [vehicles, setVehicles]         = useState([]);
   const [savedDests, setSavedDests]     = useState([]);
   const [loadingDest, setLoadingDest]   = useState(null); // dest id being auto-confirmed
-  const watchRef    = useRef(null);
-  const coordsRef   = useRef(null);
-  const debounceRef = useRef(null);
+  const [walkRoute, setWalkRoute]       = useState(null); // GeoJSON from Mapbox Directions
+  const watchRef       = useRef(null);
+  const coordsRef      = useRef(null);
+  const debounceRef    = useRef(null);
+  const routeFetchRef  = useRef(null); // timer for debouncing route re-fetches
 
   const depSecs = useCountdown(journey?.departs);
 
@@ -104,6 +106,35 @@ export default function ChildView() {
     supabase.from('child_destinations').select('*').order('sort_order')
       .then(({ data }) => { if (data?.length) setSavedDests(data); });
   }, []);
+
+  // Fetch road-snapped walking route from child → boarding stop (debounced 15s)
+  useEffect(() => {
+    if (!journey || boardedState === 'ON_BUS' || !coords || !MAPBOX_TOKEN) {
+      setWalkRoute(null);
+      return;
+    }
+    const leg = journey.legs[0];
+    const originCoord = leg?.fromCoord; // [lat, lon]
+    if (!originCoord) return;
+
+    const fetchRoute = () => {
+      const [sLat, sLon] = originCoord;
+      fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/walking/${coords.lon},${coords.lat};${sLon},${sLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`
+      )
+        .then(r => r.json())
+        .then(data => {
+          const geom = data.routes?.[0]?.geometry;
+          if (geom) setWalkRoute(geom);
+        })
+        .catch(() => {});
+    };
+
+    fetchRoute();
+    clearInterval(routeFetchRef.current);
+    routeFetchRef.current = setInterval(fetchRoute, 15000);
+    return () => clearInterval(routeFetchRef.current);
+  }, [journey, boardedState, coords?.lat, coords?.lon]);
 
   const start = () => {
     if (!navigator.geolocation) { setGpsError('GPS not available'); return; }
@@ -248,6 +279,26 @@ export default function ChildView() {
                   </div>
                 </div>
               </Marker>
+            )}
+
+            {/* Road-snapped walking route: child → boarding stop */}
+            {walkRoute && !isBoarded && (
+              <Source type="geojson" data={{ type: 'Feature', geometry: walkRoute }}>
+                {/* Glow underlay */}
+                <Layer
+                  id="walk-route-glow"
+                  type="line"
+                  paint={{ 'line-color': '#34D399', 'line-width': 8, 'line-opacity': 0.18 }}
+                  layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                />
+                {/* Main route line */}
+                <Layer
+                  id="walk-route"
+                  type="line"
+                  paint={{ 'line-color': '#34D399', 'line-width': 3.5, 'line-opacity': 0.9 }}
+                  layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                />
+              </Source>
             )}
 
             {vehicles.map(v => (
