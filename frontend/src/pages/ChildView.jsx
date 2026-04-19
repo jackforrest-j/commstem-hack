@@ -242,7 +242,8 @@ export default function ChildView() {
     const destCoord   = destination?.coord;
     const loc         = coords;
     const isBoarded   = boardedState === 'ON_BUS';
-    const delayMins   = liveStatus?.delayMins;
+    const delayMins        = liveStatus?.delayMins;
+    const rerouteAvailable = liveStatus?.rerouteAvailable && delayMins > 10;
     const depPast     = depSecs !== null && depSecs <= 0;
 
     let distM = null, walkMins = null, dir = null;
@@ -422,9 +423,21 @@ export default function ChildView() {
             <div style={{
               marginBottom: 12, padding: '10px 14px', borderRadius: 12,
               background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
-              fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center',
             }}>
-              ⚠ {leg?.line ? `${MODE_ICONS[leg?.mode] || '🚌'} ${leg.line}` : 'Service'} is running {delayMins} min behind schedule
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center' }}>
+                ⚠ {leg?.line ? `${MODE_ICONS[leg?.mode] || '🚌'} ${leg.line}` : 'Service'} is running {delayMins} min behind schedule
+              </div>
+              {rerouteAvailable && (
+                <button
+                  onClick={() => destination && goTo(destination)}
+                  disabled={loadingDest}
+                  style={{
+                    marginTop: 10, width: '100%', padding: '10px', borderRadius: 10, border: 'none',
+                    background: '#f87171', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                  {loadingDest ? 'Finding route…' : 'Find next route →'}
+                </button>
+              )}
             </div>
           )}
 

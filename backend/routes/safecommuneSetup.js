@@ -3,9 +3,20 @@ const router  = express.Router();
 const { searchStops, nearbyStops, planTrip, planTripFromCoord, planTripFromCoordToCoord, getDepartures } = require('../lib/nswTransport');
 const { sampleVehicles, getNearbyVehicles } = require('../lib/gtfsRealtime');
 const store = require('../lib/journeyStore');
+const { scoreAndRankTrips } = require('../lib/tripScorer');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+async function fetchChildPrefs(parentId) {
+  if (!parentId) return null;
+  try {
+    const { data } = await supabase.from('children')
+      .select('walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes, fallback_preference')
+      .eq('parent_id', parentId).single();
+    return data || null;
+  } catch { return null; }
+}
 
 // Nearest stops to GPS coordinates
 router.get('/stops/nearby', async (req, res) => {
@@ -71,11 +82,15 @@ router.get('/debug/trip-raw', async (req, res) => {
 
 // Plan trips between two stops
 router.get('/trips', async (req, res) => {
-  const { from, to } = req.query;
+  const { from, to, parentId } = req.query;
   if (!from || !to) return res.status(400).json({ error: 'from and to required' });
   try {
-    const trips = await planTrip(from, to);
+    let trips = await planTrip(from, to);
     if (!trips.length) console.warn(`[trips] no results for from=${from} to=${to}`);
+    if (parentId) {
+      const prefs = await fetchChildPrefs(parentId);
+      if (prefs) trips = scoreAndRankTrips(trips, prefs, null, null, null);
+    }
     res.json(trips);
   } catch (e) {
     console.error('[trips] error:', e.message);
@@ -85,7 +100,7 @@ router.get('/trips', async (req, res) => {
 
 // Plan trips from GPS coordinates to a destination stop ID or coordinate
 router.get('/trips/from-coord', async (req, res) => {
-  const { lat, lon, to, toLat, toLon } = req.query;
+  const { lat, lon, to, toLat, toLon, parentId } = req.query;
   if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
   try {
     let trips;
@@ -95,6 +110,15 @@ router.get('/trips/from-coord', async (req, res) => {
       trips = await planTripFromCoord(parseFloat(lat), parseFloat(lon), to);
     } else {
       return res.status(400).json({ error: 'either to (stop ID) or toLat+toLon required' });
+    }
+    if (parentId) {
+      const prefs = await fetchChildPrefs(parentId);
+      if (prefs) {
+        const childLat  = parseFloat(lat);
+        const childLon  = parseFloat(lon);
+        const destCoord = (toLat && toLon) ? [parseFloat(toLat), parseFloat(toLon)] : null;
+        trips = scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord);
+      }
     }
     res.json(trips);
   } catch (e) {

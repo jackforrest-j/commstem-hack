@@ -78,6 +78,12 @@ export default function ProfileSetup() {
 
   const [childId, setChildId]           = useState(null);
   const [walkSpeed, setWalkSpeed]       = useState('normal');
+  const [familiarity, setFamiliarity]   = useState('beginner');
+  const [transferTol, setTransferTol]   = useState(1);
+  const [walkTolM, setWalkTolM]         = useState(500);
+  const [bufferMins, setBufferMins]     = useState(5);
+  const [allowedModes, setAllowedModes] = useState(null); // null = all
+  const [fallbackPref, setFallbackPref] = useState('both');
   const [destinations, setDestinations] = useState([
     { label: 'Home',   emoji: '🏠', stop: null },
     { label: 'School', emoji: '🏫', stop: null },
@@ -86,11 +92,26 @@ export default function ProfileSetup() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
 
+  const toggleMode = (m) => setAllowedModes(prev => {
+    const base = prev || [1, 4, 5, 7, 9];
+    return base.includes(m) ? base.filter(x => x !== m) : [...base, m];
+  });
+
   useEffect(() => {
     if (!user) return;
-    supabase.from('children').select('id, walking_speed').eq('parent_id', user.id).single()
+    supabase.from('children')
+      .select('id, walking_speed, familiarity_level, transfer_tolerance, walk_tolerance_m, buffer_minutes, allowed_modes, fallback_preference')
+      .eq('parent_id', user.id).single()
       .then(({ data }) => {
-        if (data) { setChildId(data.id); if (data.walking_speed) setWalkSpeed(data.walking_speed); }
+        if (!data) return;
+        setChildId(data.id);
+        if (data.walking_speed) setWalkSpeed(data.walking_speed);
+        if (data.familiarity_level) setFamiliarity(data.familiarity_level);
+        if (data.transfer_tolerance != null) setTransferTol(data.transfer_tolerance);
+        if (data.walk_tolerance_m != null) setWalkTolM(data.walk_tolerance_m);
+        if (data.buffer_minutes != null) setBufferMins(data.buffer_minutes);
+        setAllowedModes(data.allowed_modes || null);
+        if (data.fallback_preference) setFallbackPref(data.fallback_preference);
       });
     supabase.from('child_destinations').select('*').eq('parent_id', user.id).order('sort_order')
       .then(({ data }) => {
@@ -130,7 +151,15 @@ export default function ProfileSetup() {
   const savePreferences = async () => {
     if (!user || !childId) return;
     setSaving(true);
-    await supabase.from('children').update({ walking_speed: walkSpeed }).eq('id', childId);
+    await supabase.from('children').update({
+      walking_speed:       walkSpeed,
+      familiarity_level:   familiarity,
+      transfer_tolerance:  transferTol,
+      walk_tolerance_m:    walkTolM,
+      buffer_minutes:      bufferMins,
+      allowed_modes:       allowedModes,
+      fallback_preference: fallbackPref,
+    }).eq('id', childId);
     setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); setView('menu'); }, 1200);
   };
@@ -259,34 +288,118 @@ export default function ProfileSetup() {
 
   // ── Child preferences ────────────────────────────────────────────────────────
   if (view === 'preferences') {
+    const prefSection = (label) => (
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, marginTop: 24,
+        textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+    );
+    const optRow = (options, value, onSelect) => (
+      <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
+        {options.map(opt => {
+          const active = value === opt.value;
+          return (
+            <button key={opt.value} onClick={() => onSelect(opt.value)} style={{
+              flex: 1, padding: '14px 8px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: active ? '#85A947' : 'var(--bg-surface)',
+              outline: active ? '2px solid #3E7B27' : '2px solid var(--border)',
+              transition: 'all 0.15s', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 24, marginBottom: 4 }}>{opt.emoji}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: active ? '#123524' : 'var(--text-primary)' }}>{opt.label}</div>
+              {opt.desc && <div style={{ fontSize: 10, color: active ? '#1a4a10' : 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>}
+            </button>
+          );
+        })}
+      </div>
+    );
+
+    const TRANSPORT_CHIPS = [
+      { mode: 1, label: 'Train', emoji: '🚆' },
+      { mode: 5, label: 'Bus',   emoji: '🚌' },
+      { mode: 4, label: 'Tram',  emoji: '🚊' },
+      { mode: 9, label: 'Ferry', emoji: '⛴️' },
+    ];
+    const allActive = allowedModes === null;
+
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', fontFamily: 'var(--font-ui)' }}>
         <div style={{ background: 'var(--sidebar-bg)', padding: '52px 24px 28px' }}>
           <button onClick={() => setView('menu')} style={backBtnStyle}>← Profile</button>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#EFE3C2', marginTop: 12 }}>Child preferences</div>
-          <div style={{ fontSize: 14, color: 'var(--sidebar-muted)', marginTop: 4 }}>How fast does your child walk to the stop?</div>
+          <div style={{ fontSize: 14, color: 'var(--sidebar-muted)', marginTop: 4 }}>Personalise routing for your child</div>
         </div>
 
-        <div style={{ padding: '28px 24px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Walking speed</div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 32 }}>
-            {WALK_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => setWalkSpeed(opt.value)} style={{
-                flex: 1, padding: '20px 12px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                background: walkSpeed === opt.value ? '#85A947' : 'var(--bg-surface)',
-                outline: walkSpeed === opt.value ? '2px solid #3E7B27' : '2px solid var(--border)',
-                transition: 'all 0.15s',
-              }}>
-                <div style={{ fontSize: 32, marginBottom: 6 }}>{opt.emoji}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: walkSpeed === opt.value ? '#123524' : 'var(--text-primary)' }}>{opt.label}</div>
-                <div style={{ fontSize: 11, color: walkSpeed === opt.value ? '#1a4a10' : 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
-              </button>
-            ))}
+        <div style={{ padding: '0 24px 32px' }}>
+
+          {prefSection('Transport familiarity')}
+          {optRow([
+            { value: 'beginner',     emoji: '🌱', label: 'Just learning', desc: 'Direct routes only' },
+            { value: 'intermediate', emoji: '🚍', label: 'Gets around',   desc: 'Some transfers ok' },
+            { value: 'experienced',  emoji: '🎓', label: 'Experienced',   desc: 'Any route' },
+          ], familiarity, setFamiliarity)}
+
+          {prefSection('Transfer tolerance')}
+          {optRow([
+            { value: 0, emoji: '🎯', label: 'Direct only', desc: 'No changes' },
+            { value: 1, emoji: '🔄', label: 'One change',  desc: 'Max 1 transfer' },
+            { value: 2, emoji: '🗺️', label: 'Any route',   desc: 'Flexible' },
+          ], transferTol, v => setTransferTol(Number(v)))}
+
+          {prefSection('Max walking distance')}
+          {optRow([
+            { value: 200,  emoji: '🏃', label: 'Close',  desc: '200 m' },
+            { value: 500,  emoji: '🚶', label: 'Medium', desc: '500 m' },
+            { value: 1000, emoji: '🗺️', label: 'Far',    desc: '1 km' },
+          ], walkTolM, v => setWalkTolM(Number(v)))}
+
+          {prefSection('Departure buffer')}
+          {optRow([
+            { value: 5,  emoji: '⚡', label: '5 min',  desc: 'Leave ASAP' },
+            { value: 10, emoji: '🕐', label: '10 min', desc: 'Some buffer' },
+            { value: 15, emoji: '🛡️', label: '15 min', desc: 'Safe margin' },
+          ], bufferMins, v => setBufferMins(Number(v)))}
+
+          {prefSection('Allowed transport modes')}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+            <button
+              onClick={() => setAllowedModes(null)}
+              style={{
+                padding: '10px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                background: allActive ? '#85A947' : 'var(--bg-surface)',
+                outline: allActive ? '2px solid #3E7B27' : '2px solid var(--border)',
+                color: allActive ? '#123524' : 'var(--text-primary)',
+              }}>All modes</button>
+            {TRANSPORT_CHIPS.map(({ mode, label, emoji }) => {
+              const active = !allActive && (allowedModes || []).includes(mode);
+              return (
+                <button key={mode} onClick={() => toggleMode(mode)} style={{
+                  padding: '10px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: active ? '#85A947' : 'var(--bg-surface)',
+                  outline: active ? '2px solid #3E7B27' : '2px solid var(--border)',
+                  color: active ? '#123524' : 'var(--text-primary)',
+                }}>{emoji} {label}</button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, marginBottom: 4 }}>
+            Tap a mode to restrict to specific transport types. "All modes" means no restriction.
           </div>
 
-          <button onClick={savePreferences} disabled={saving} style={saveBtn(saved)}>
-            {saved ? '✓ Saved!' : saving ? 'Saving…' : 'Save preferences →'}
-          </button>
+          {prefSection('If a service is very delayed')}
+          {optRow([
+            { value: 'notify_parent', emoji: '📱', label: 'Tell parent',    desc: 'Notify only' },
+            { value: 'next_route',    emoji: '🔄', label: 'Find new route', desc: 'Reroute only' },
+            { value: 'both',          emoji: '🛡️', label: 'Both',           desc: 'Notify + reroute' },
+          ], fallbackPref, setFallbackPref)}
+
+          {prefSection('Walking speed')}
+          {optRow(WALK_OPTIONS.map(o => ({ value: o.value, emoji: o.emoji, label: o.label, desc: o.desc })),
+            walkSpeed, setWalkSpeed)}
+
+          <div style={{ marginTop: 32 }}>
+            <button onClick={savePreferences} disabled={saving} style={saveBtn(saved)}>
+              {saved ? '✓ Saved!' : saving ? 'Saving…' : 'Save preferences →'}
+            </button>
+          </div>
         </div>
       </div>
     );

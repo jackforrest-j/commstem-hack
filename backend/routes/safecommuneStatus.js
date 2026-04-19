@@ -3,6 +3,9 @@ const router  = express.Router();
 const { getDepartures }   = require('../lib/nswTransport');
 const { getDelayForJourney } = require('../lib/gtfsRealtime');
 const store               = require('../lib/journeyStore');
+const { createClient }    = require('@supabase/supabase-js');
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 router.get('/status', async (req, res) => {
   const { parentId } = req.query;
@@ -47,6 +50,17 @@ router.get('/status', async (req, res) => {
       if (diff > 0) delayMins = diff;
     }
 
+    // rerouteAvailable: shown on child screen when delay > 10 min and prefs allow it
+    let rerouteAvailable = false;
+    if (delayMins > 10) {
+      try {
+        const { data: childRow } = await supabase.from('children')
+          .select('fallback_preference').eq('parent_id', parentId).single();
+        const fp = childRow?.fallback_preference || 'both';
+        rerouteAvailable = fp === 'next_route' || fp === 'both';
+      } catch { /* non-fatal */ }
+    }
+
     return res.json({
       state,
       child:       child ? { lat: child.lat, lon: child.lon } : null,
@@ -56,6 +70,7 @@ router.get('/status', async (req, res) => {
       nextDeparts: nextDeparture?.departs || null,
       isRealTime:  nextDeparture?.isRealTime || false,
       delayMins,
+      rerouteAvailable,
       originCoord: firstLeg?.fromCoord  || null,
       originName:  firstLeg?.from       || null,
       destCoord:   lastLeg?.toCoord     || null,
