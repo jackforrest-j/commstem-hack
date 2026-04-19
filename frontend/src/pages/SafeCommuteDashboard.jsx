@@ -343,7 +343,7 @@ export default function SafeCommuteDashboard() {
           </div>
           {delayMins > 0 && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 8, padding: '8px 12px' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>⚠ Running {delayMins} min behind schedule</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>⚠ {line ? `${line}` : 'Service'} running {delayMins} min behind schedule</span>
             </div>
           )}
         </div>

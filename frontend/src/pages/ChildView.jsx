@@ -424,7 +424,7 @@ export default function ChildView() {
               background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
               fontSize: 13, fontWeight: 700, color: '#f87171', textAlign: 'center',
             }}>
-              ⚠ Running {delayMins} min behind schedule
+              ⚠ {leg?.line ? `${MODE_ICONS[leg?.mode] || '🚌'} ${leg.line}` : 'Service'} is running {delayMins} min behind schedule
             </div>
           )}
 
