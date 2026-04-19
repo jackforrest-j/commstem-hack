@@ -10,6 +10,7 @@ const API_BASE     = import.meta.env.VITE_API_URL || '';
 const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 
 const STATE_META = {
+  SELECTING_ROUTE: { bg: '#6366f1', label: 'Choosing a route', icon: '🗺️' },
   WALKING:  { bg: '#F59E0B', label: 'Walking to stop',  icon: '🚶' },
   WAITING:  { bg: '#85A947', label: 'Waiting at stop',  icon: '🚏' },
   AT_STOP:  { bg: '#F59E0B', label: 'At the stop',      icon: '🚏' },
@@ -161,7 +162,8 @@ export default function SafeCommuteDashboard() {
     : null;
   const isWalking  = distToStop !== null && distToStop > 10;
   const walkMins   = distToStop !== null ? Math.max(1, Math.round(distToStop / 80)) : null;
-  const displayState = isWalking ? 'WALKING' : state;
+  const isSelectingRoute = status?.mode === 'idle' && childConnected;
+  const displayState = isSelectingRoute ? 'SELECTING_ROUTE' : isWalking ? 'WALKING' : state;
   const stateMeta  = STATE_META[displayState] ?? STATE_META.WAITING;
 
   // Auto-zoom to frame child + boarding stop when walking
