@@ -317,6 +317,15 @@ export default function ProfileSetup() {
     ];
     const allActive = allowedModes === null;
 
+    const WALK_DISTANCES = {
+      slow:   [{ value: 150,  label: '150m', desc: '~2.5 min' }, { value: 300,  label: '300m', desc: '~5 min'  }, { value: 600,  label: '600m',  desc: '~10 min' }],
+      normal: [{ value: 200,  label: '200m', desc: '~2.5 min' }, { value: 500,  label: '500m', desc: '~6 min'  }, { value: 1000, label: '1km',   desc: '~12 min' }],
+      fast:   [{ value: 300,  label: '300m', desc: '~3 min'   }, { value: 750,  label: '750m', desc: '~7.5 min'}, { value: 1500, label: '1.5km', desc: '~15 min' }],
+    };
+    const distOptions = WALK_DISTANCES[walkSpeed] || WALK_DISTANCES.normal;
+    const validDistValues = distOptions.map(o => o.value);
+    const effectiveWalkTolM = validDistValues.includes(walkTolM) ? walkTolM : distOptions[1].value;
+
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', fontFamily: 'var(--font-ui)' }}>
         <div style={{ background: 'var(--sidebar-bg)', padding: '52px 24px 28px' }}>
@@ -358,26 +367,37 @@ export default function ProfileSetup() {
               : `Your child can only use: ${TRANSPORT_CHIPS.filter(({ modes }) => modes.some(m => (allowedModes || []).includes(m))).map(c => c.label).join(', ')}. Other modes will be blocked.`}
           </div>
 
+          {prefSection('Walking pace', 'Used to calculate if your child can reach the stop in time')}
+          {optRow([
+            { value: 'slow',   emoji: '🐢', label: 'Slow',   desc: '~60m/min' },
+            { value: 'normal', emoji: '🚶', label: 'Normal', desc: '~80m/min' },
+            { value: 'fast',   emoji: '🏃', label: 'Fast',   desc: '~100m/min' },
+          ], walkSpeed, v => {
+            setWalkSpeed(v);
+            const opts = WALK_DISTANCES[v] || WALK_DISTANCES.normal;
+            if (!opts.map(o => o.value).includes(walkTolM)) setWalkTolM(opts[1].value);
+          })}
+
+          {prefSection('Maximum walking distance', 'Stops further than this will be filtered out entirely')}
+          {optRow(
+            distOptions.map(o => ({ value: o.value, emoji: o.value <= 300 ? '🏃' : o.value <= 750 ? '🚶' : '🗺️', label: o.label, desc: o.desc })),
+            effectiveWalkTolM,
+            v => setWalkTolM(Number(v))
+          )}
+
           {prefSection('Comfort with public transport', 'Affects how strongly we prefer simple, direct routes')}
           {optRow([
-            { value: 'beginner',     emoji: '🌱', label: 'First timer',  desc: 'Always picks simplest route' },
+            { value: 'beginner',     emoji: '🌱', label: 'First timer',   desc: 'Always picks simplest route' },
             { value: 'intermediate', emoji: '🚍', label: 'Getting there', desc: 'Balances simple + fast' },
-            { value: 'experienced',  emoji: '🎓', label: 'Confident',    desc: 'Fastest route wins' },
+            { value: 'experienced',  emoji: '🎓', label: 'Confident',     desc: 'Fastest route wins' },
           ], familiarity, setFamiliarity)}
 
           {prefSection('Maximum transfers', 'Routes needing more changes will be penalised or hidden')}
           {optRow([
-            { value: 0, emoji: '🎯', label: 'None',    desc: 'Direct routes only' },
-            { value: 1, emoji: '🔄', label: 'One',     desc: 'Up to 1 transfer' },
-            { value: 2, emoji: '🗺️', label: 'Any',     desc: 'No limit' },
+            { value: 0, emoji: '🎯', label: 'None', desc: 'Direct routes only' },
+            { value: 1, emoji: '🔄', label: 'One',  desc: 'Up to 1 transfer' },
+            { value: 2, emoji: '🗺️', label: 'Any',  desc: 'No limit' },
           ], transferTol, v => setTransferTol(Number(v)))}
-
-          {prefSection('Maximum walking distance', 'Stops further than this will be filtered out entirely')}
-          {optRow([
-            { value: 200,  emoji: '🏃', label: '200m', desc: '~2 min walk' },
-            { value: 500,  emoji: '🚶', label: '500m', desc: '~6 min walk' },
-            { value: 1000, emoji: '🗺️', label: '1km',  desc: '~12 min walk' },
-          ], walkTolM, v => setWalkTolM(Number(v)))}
 
           {prefSection('Leave-early buffer', 'Extra time before departure so your child is never rushed')}
           {optRow([
@@ -385,13 +405,6 @@ export default function ProfileSetup() {
             { value: 10, emoji: '🕐', label: '10 min', desc: 'Breathing room' },
             { value: 15, emoji: '🛡️', label: '15 min', desc: 'Extra safe' },
           ], bufferMins, v => setBufferMins(Number(v)))}
-
-          {prefSection('Walking pace', 'Used to calculate if your child can reach the stop in time')}
-          {optRow([
-            { value: 'slow',   emoji: '🐢', label: 'Slow',   desc: '~60m/min' },
-            { value: 'normal', emoji: '🚶', label: 'Normal', desc: '~80m/min' },
-            { value: 'fast',   emoji: '🏃', label: 'Fast',   desc: '~100m/min' },
-          ], walkSpeed, setWalkSpeed)}
 
           <div style={{ marginTop: 32 }}>
             <button onClick={savePreferences} disabled={saving} style={saveBtn(saved)}>
