@@ -201,6 +201,8 @@ export default function ChildView() {
     const focusLon = loc?.lon ?? (originCoord?.[1] ?? 151.215);
 
     const countdownColor = depPast ? '#f87171' : (depSecs !== null && depSecs < 120) ? '#FBBF24' : '#34D399';
+    const atStop = distM !== null && distM <= 10;
+    const noGps  = !loc;
 
     return (
       <div style={{ position: 'fixed', inset: 0, fontFamily: 'var(--font-ui)' }}>
@@ -350,40 +352,33 @@ export default function ChildView() {
             </div>
           )}
 
-          {!isBoarded ? (() => {
-            const atStop = distM !== null && distM <= 10;
-            const noGps  = !loc;
-            return (
-              <div>
-                <button
-                  disabled={!atStop}
-                  style={{
-                    width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
-                    background: atStop
-                      ? 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)'
-                      : 'rgba(255,255,255,0.07)',
-                    color: atStop ? '#fff' : 'rgba(255,255,255,0.3)',
-                    border: atStop ? 'none' : '1.5px solid rgba(255,255,255,0.1)',
-                    borderRadius: 16,
-                    cursor: atStop ? 'pointer' : 'not-allowed',
-                    boxShadow: atStop ? '0 4px 20px rgba(62,123,39,0.5)' : 'none',
-                    letterSpacing: '0.01em',
-                    transition: 'all 0.3s',
-                  }}
-                  onClick={atStop ? boardBus : undefined}
-                >
-                  🚌 I'm on the bus!
-                </button>
-                {!atStop && (
-                  <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
-                    {noGps
-                      ? '📍 Waiting for GPS…'
-                      : `${distM}m from stop — get closer to unlock`}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {!isBoarded ? (
+            <div>
+              <button
+                disabled={!atStop}
+                style={{
+                  width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                  background: atStop
+                    ? 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)'
+                    : 'rgba(255,255,255,0.07)',
+                  color: atStop ? '#fff' : 'rgba(255,255,255,0.3)',
+                  border: atStop ? 'none' : '1.5px solid rgba(255,255,255,0.1)',
+                  borderRadius: 16,
+                  cursor: atStop ? 'pointer' : 'not-allowed',
+                  boxShadow: atStop ? '0 4px 20px rgba(62,123,39,0.5)' : 'none',
+                  letterSpacing: '0.01em',
+                  transition: 'all 0.3s',
+                }}
+                onClick={atStop ? boardBus : undefined}
+              >
+                🚌 I'm on the bus!
+              </button>
+              {!atStop && (
+                <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
+                  {noGps ? '📍 Waiting for GPS…' : `${distM}m from stop — get closer to unlock`}
+                </div>
+              )}
+            </div>
           ) : (
             <div style={{
               padding: '14px 16px', borderRadius: 16, textAlign: 'center',
