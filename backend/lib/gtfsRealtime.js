@@ -3,7 +3,7 @@ const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
 const NSW_API_KEY = process.env.NSW_API_KEY;
 const BASE = 'https://api.transport.nsw.gov.au';
 
-// 15-second TTL cache for each feed URL
+// 15-second TTL cache per feed URL
 const cache = new Map();
 
 async function fetchFeed(path) {
@@ -22,47 +22,124 @@ async function fetchFeed(path) {
   return feed;
 }
 
-// Find vehicle position for a given tripCode (matches against trip_id and route_id)
-async function getVehiclePosition(tripCode, routeId) {
-  const feed = await fetchFeed('/v1/gtfs/vehiclepos/buses');
+// mode class → vehicle position feed path
+// mode 1=train, 4=lightrail, 5/7=bus, 9=ferry
+function feedPathForMode(mode) {
+  if (mode === 1)            return '/v1/gtfs/vehiclepos/nswtrains';
+  if (mode === 4)            return '/v1/gtfs/vehiclepos/lightrail/cbdandsoutheast';
+  if (mode === 5 || mode === 7) return '/v1/gtfs/vehiclepos/buses';
+  if (mode === 9)            return '/v1/gtfs/vehiclepos/ferries/sydneyferries';
+  return null;
+}
+
+function tripUpdateFeedForMode(mode) {
+  if (mode === 1)            return '/v1/gtfs/realtime/nswtrains';
+  if (mode === 4)            return '/v1/gtfs/realtime/lightrail/cbdandsoutheast';
+  if (mode === 5 || mode === 7) return '/v1/gtfs/realtime/buses';
+  if (mode === 9)            return '/v1/gtfs/realtime/ferries/sydneyferries';
+  return null;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, toR = x => x * Math.PI / 180;
+  const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function timeToMins(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Find the vehicle closest to the boarding stop with a matching departure time window.
+// Strategy: score = distance_km + timeDiff_mins * 0.3 → pick lowest score within limits.
+async function getVehicleForJourney(leg) {
+  const feedPath = feedPathForMode(leg.mode);
+  if (!feedPath) return null;
+
+  const fromCoord = leg.fromCoord; // [lat, lon]
+  if (!fromCoord) return null;
+  const [stopLat, stopLon] = fromCoord;
+
+  // Scheduled departure as HH:MM
+  const depDate = leg.departs ? new Date(leg.departs) : null;
+  const depMins = depDate
+    ? depDate.getHours() * 60 + depDate.getMinutes()
+    : null;
+
+  let feed;
+  try { feed = await fetchFeed(feedPath); } catch { return null; }
+
+  let best = null, bestScore = Infinity;
   for (const entity of feed.entity) {
     const vp = entity.vehicle;
     if (!vp?.position) continue;
-    const tid = vp.trip?.tripId;
-    const rid = vp.trip?.routeId;
-    if ((tripCode && tid === tripCode) || (routeId && rid === routeId)) {
-      return {
+
+    const dist = haversineKm(stopLat, stopLon, vp.position.latitude, vp.position.longitude);
+    if (dist > 10) continue; // ignore vehicles more than 10 km away
+
+    let timePenalty = 0;
+    if (depMins !== null && vp.trip?.startTime) {
+      const startMins = timeToMins(vp.trip.startTime.slice(0, 5));
+      const diff = Math.abs(startMins - depMins);
+      if (diff > 30) continue; // departure time too different
+      timePenalty = diff * 0.3;
+    }
+
+    const score = dist + timePenalty;
+    if (score < bestScore) {
+      bestScore = score;
+      best = {
         lat: vp.position.latitude,
         lon: vp.position.longitude,
-        tripId: tid,
-        routeId: rid,
+        tripId: vp.trip?.tripId,
+        routeId: vp.trip?.routeId,
       };
     }
   }
-  return null;
+  return best;
 }
 
-// Get delay (seconds) for the next upcoming stop on a trip
-async function getTripDelay(tripCode, routeId) {
-  const feed = await fetchFeed('/v1/gtfs/realtime/buses');
+// Get delay in seconds for a trip, matched by proximity + start time (same strategy).
+async function getDelayForJourney(leg) {
+  const feedPath = tripUpdateFeedForMode(leg.mode);
+  if (!feedPath) return null;
+
+  const fromCoord = leg.fromCoord;
+  const depDate = leg.departs ? new Date(leg.departs) : null;
+  const depMins = depDate ? depDate.getHours() * 60 + depDate.getMinutes() : null;
+
+  let feed;
+  try { feed = await fetchFeed(feedPath); } catch { return null; }
+
+  // Find the best-matching trip update
+  let bestDelay = null, bestScore = Infinity;
   for (const entity of feed.entity) {
     const tu = entity.tripUpdate;
-    if (!tu) continue;
-    const tid = tu.trip?.tripId;
-    const rid = tu.trip?.routeId;
-    if ((tripCode && tid === tripCode) || (routeId && rid === routeId)) {
-      // Find the first future stop time update with a delay
-      for (const stu of (tu.stopTimeUpdate || [])) {
-        const delay = stu.arrival?.delay ?? stu.departure?.delay;
-        if (delay != null) return delay;
+    if (!tu?.stopTimeUpdate?.length) continue;
+
+    let timePenalty = 999;
+    if (depMins !== null && tu.trip?.startTime) {
+      const diff = Math.abs(timeToMins(tu.trip.startTime.slice(0, 5)) - depMins);
+      if (diff > 30) continue;
+      timePenalty = diff;
+    }
+
+    if (timePenalty < bestScore) {
+      const stu = tu.stopTimeUpdate[0];
+      const delay = stu?.arrival?.delay ?? stu?.departure?.delay ?? null;
+      if (delay !== null) {
+        bestScore = timePenalty;
+        bestDelay = delay;
       }
     }
   }
-  return null;
+  return bestDelay;
 }
 
-// Debug: sample first N vehicle entities from the feed
-async function sampleVehicles(n = 5) {
+// Debug: sample first N vehicle entities from the buses feed
+async function sampleVehicles(n = 10) {
   const feed = await fetchFeed('/v1/gtfs/vehiclepos/buses');
   return feed.entity.slice(0, n).map(e => ({
     id: e.id,
@@ -74,4 +151,4 @@ async function sampleVehicles(n = 5) {
   }));
 }
 
-module.exports = { getVehiclePosition, getTripDelay, sampleVehicles };
+module.exports = { getVehicleForJourney, getDelayForJourney, sampleVehicles };

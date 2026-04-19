@@ -55,11 +55,25 @@ export default function ChildView() {
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [journey, setJourney]         = useState(null);
   const [boardedState, setBoardedState] = useState(null);
+  const [liveStatus, setLiveStatus]     = useState(null);
   const watchRef    = useRef(null);
   const coordsRef   = useRef(null);
   const debounceRef = useRef(null);
 
   const depSecs = useCountdown(journey?.departs);
+
+  // Poll live status (vehicle position + delay) every 10s once journey confirmed
+  useEffect(() => {
+    if (!journey) return;
+    const poll = () =>
+      fetch(`${API_BASE}/api/safecommute/status`)
+        .then(r => r.json())
+        .then(d => setLiveStatus(d))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 10000);
+    return () => clearInterval(id);
+  }, [journey]);
 
   const start = () => {
     if (!navigator.geolocation) { setGpsError('GPS not available'); return; }
@@ -144,6 +158,8 @@ export default function ChildView() {
     const destCoord   = destination?.coord; // [lat, lon]
     const loc         = coords;
     const isBoarded   = boardedState === 'ON_BUS';
+    const vehicle     = liveStatus?.vehicle;
+    const delayMins   = liveStatus?.delayMins;
     const depPast     = depSecs !== null && depSecs <= 0;
 
     // Walk directions
@@ -210,6 +226,13 @@ export default function ChildView() {
                 </div>
               </Marker>
             )}
+
+            {/* Live bus position */}
+            {vehicle && (
+              <Marker longitude={vehicle.lon} latitude={vehicle.lat} anchor="center">
+                <div style={{ fontSize: 30, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))' }}>🚌</div>
+              </Marker>
+            )}
           </Map>
         ) : (
           <div style={{ width: '100%', height: '100%', background: '#e8f0e8' }} />
@@ -256,6 +279,17 @@ export default function ChildView() {
               <div style={{ fontSize: 11, color: 'var(--sidebar-muted)' }}>{journey.durationMin} min ride</div>
             </div>
           </div>
+
+          {/* Delay banner */}
+          {delayMins > 0 && (
+            <div style={{
+              marginTop: 10, padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)',
+              fontSize: 13, fontWeight: 600, color: '#f87171', textAlign: 'center',
+            }}>
+              ⚠ Running {delayMins} min late
+            </div>
+          )}
 
           {/* Board / arrived button */}
           {!isBoarded ? (

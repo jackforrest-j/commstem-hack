@@ -113,9 +113,11 @@ export default function SafeCommuteDashboard() {
   const childLng   = status?.child?.lon ?? INITIAL_VIEW.longitude;
   const childLat   = status?.child?.lat ?? INITIAL_VIEW.latitude;
   const liveMode   = status?.mode === 'live';
-  const originCoord = status?.originCoord;  // [lat, lon] from NSW API
+  const originCoord = status?.originCoord;
   const destCoord   = status?.destCoord;
   const destName    = status?.destName;
+  const vehicle     = status?.vehicle;
+  const delayMins   = status?.delayMins;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a1a1a', fontFamily: 'var(--font-ui)' }}>
@@ -158,6 +160,12 @@ export default function SafeCommuteDashboard() {
                   {destName?.split(',')[0]}
                 </div>
               </div>
+            </Marker>
+          )}
+
+          {vehicle && (
+            <Marker longitude={vehicle.lon} latitude={vehicle.lat} anchor="center">
+              <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>🚌</div>
             </Marker>
           )}
         </Map>
@@ -231,7 +239,7 @@ export default function SafeCommuteDashboard() {
         }
 
         {/* State badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: stateMeta.bg, borderRadius: 8, padding: '10px 16px',
@@ -241,6 +249,11 @@ export default function SafeCommuteDashboard() {
               {stateMeta.icon} {stateMeta.label}{line ? ` · ${line}` : ''}
             </span>
           </div>
+          {delayMins > 0 && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 8, padding: '8px 12px' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>⚠ {delayMins} min delay</span>
+            </div>
+          )}
         </div>
 
         {/* Stats row */}
