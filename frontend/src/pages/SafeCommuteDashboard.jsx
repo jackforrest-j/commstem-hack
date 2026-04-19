@@ -57,7 +57,7 @@ function ShareLink({ childLink, copied, onCopy }) {
   );
 }
 
-export default function Hansel & GretelDashboard() {
+export default function SafeCommuteDashboard() {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const [childName, setChildName] = useState('');
