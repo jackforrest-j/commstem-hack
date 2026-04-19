@@ -3,7 +3,7 @@ const router  = express.Router();
 const { getBusPosition, getChildPosition, ROUTE_STOPS, LOOP_SECONDS } = require('../lib/mockTransport');
 const { getJourneyState } = require('../lib/journeyEngine');
 const { getDepartures }   = require('../lib/nswTransport');
-const { getVehicleForJourney, getDelayForJourney } = require('../lib/gtfsRealtime');
+const { getDelayForJourney } = require('../lib/gtfsRealtime');
 const store               = require('../lib/journeyStore');
 
 router.get('/status', async (req, res) => {
@@ -29,11 +29,8 @@ router.get('/status', async (req, res) => {
       } catch { /* non-fatal */ }
     }
 
-    // GTFS-RT: vehicle position + delay (non-fatal, best-effort)
-    const [vehicle, delaySecs] = await Promise.all([
-      getVehicleForJourney(activeLeg).catch(() => null),
-      getDelayForJourney(activeLeg).catch(() => null),
-    ]);
+    // GTFS-RT: delay (vehicle positions now fetched per-map via /vehicles/nearby)
+    const delaySecs = await getDelayForJourney(activeLeg).catch(() => null);
 
     const manualState = store.getManualState();
     let state = manualState || (child ? 'ON_BUS' : 'WAITING');
@@ -54,7 +51,6 @@ router.get('/status', async (req, res) => {
     return res.json({
       state,
       child:       child ? { lat: child.lat, lon: child.lon } : null,
-      vehicle:     vehicle ? { lat: vehicle.lat, lon: vehicle.lon } : null,
       eta_minutes,
       nearest_stop,
       line:        activeLeg?.line,

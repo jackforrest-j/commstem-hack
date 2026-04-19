@@ -50,6 +50,7 @@ export default function SafeCommuteDashboard() {
   const { user } = useAuth();
   const [childName, setChildName] = useState('');
   const [status, setStatus]       = useState(null);
+  const [vehicles, setVehicles]   = useState([]);
   const [copied, setCopied]       = useState(false);
   const prevStateRef  = useRef(null);
   const prevChildRef  = useRef(null);
@@ -97,6 +98,20 @@ export default function SafeCommuteDashboard() {
     return () => clearInterval(id);
   }, [childName]);
 
+  // Poll nearby vehicles every 15s when child is connected
+  useEffect(() => {
+    if (!status?.child) return;
+    const { lat, lon } = status.child;
+    const poll = () =>
+      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${lat}&lon=${lon}`)
+        .then(r => r.json())
+        .then(v => Array.isArray(v) && setVehicles(v))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => clearInterval(id);
+  }, [status?.child?.lat, status?.child?.lon]);
+
   const copyLink = () => {
     navigator.clipboard.writeText(childLink).then(() => {
       setCopied(true);
@@ -116,7 +131,6 @@ export default function SafeCommuteDashboard() {
   const originCoord = status?.originCoord;
   const destCoord   = status?.destCoord;
   const destName    = status?.destName;
-  const vehicle     = status?.vehicle;
   const delayMins   = status?.delayMins;
 
   return (
@@ -163,11 +177,24 @@ export default function SafeCommuteDashboard() {
             </Marker>
           )}
 
-          {vehicle && (
-            <Marker longitude={vehicle.lon} latitude={vehicle.lat} anchor="center">
-              <div style={{ fontSize: 28, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>🚌</div>
+          {vehicles.map(v => (
+            <Marker key={v.id} longitude={v.lon} latitude={v.lat} anchor="center">
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 3,
+                background: v.isTarget ? '#85A947' : 'rgba(255,255,255,0.92)',
+                border: v.isTarget ? '2px solid #3E7B27' : '1px solid rgba(0,0,0,0.18)',
+                borderRadius: 6, padding: v.isTarget ? '4px 8px' : '2px 6px',
+                fontSize: v.isTarget ? 13 : 10, fontWeight: 700,
+                color: v.isTarget ? '#123524' : '#444',
+                boxShadow: v.isTarget ? '0 3px 10px rgba(0,0,0,0.45)' : '0 1px 3px rgba(0,0,0,0.2)',
+                transform: v.isTarget ? 'scale(1.25)' : 'scale(1)',
+                transformOrigin: 'center',
+                whiteSpace: 'nowrap', pointerEvents: 'none',
+              }}>
+                🚌 {v.label}
+              </div>
             </Marker>
-          )}
+          ))}
         </Map>
       ) : (
         <div style={{ width: '100%', height: '100%', background: '#e8f0e8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 14 }}>

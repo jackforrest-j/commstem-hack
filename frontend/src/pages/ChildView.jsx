@@ -56,23 +56,37 @@ export default function ChildView() {
   const [journey, setJourney]         = useState(null);
   const [boardedState, setBoardedState] = useState(null);
   const [liveStatus, setLiveStatus]     = useState(null);
+  const [vehicles, setVehicles]         = useState([]);
   const watchRef    = useRef(null);
   const coordsRef   = useRef(null);
   const debounceRef = useRef(null);
 
   const depSecs = useCountdown(journey?.departs);
 
-  // Poll live status (vehicle position + delay) every 10s once journey confirmed
+  // Poll live status (delay) + nearby vehicles every 10s once journey confirmed
   useEffect(() => {
     if (!journey) return;
-    const poll = () =>
+    const pollStatus = () =>
       fetch(`${API_BASE}/api/safecommute/status`)
+        .then(r => r.json()).then(d => setLiveStatus(d)).catch(() => {});
+    pollStatus();
+    const sid = setInterval(pollStatus, 10000);
+    return () => clearInterval(sid);
+  }, [journey]);
+
+  useEffect(() => {
+    if (!journey) return;
+    const pollVehicles = () => {
+      const loc = coordsRef.current;
+      if (!loc) return;
+      fetch(`${API_BASE}/api/safecommute/vehicles/nearby?lat=${loc.lat}&lon=${loc.lon}`)
         .then(r => r.json())
-        .then(d => setLiveStatus(d))
+        .then(v => Array.isArray(v) && setVehicles(v))
         .catch(() => {});
-    poll();
-    const id = setInterval(poll, 10000);
-    return () => clearInterval(id);
+    };
+    pollVehicles();
+    const vid = setInterval(pollVehicles, 15000);
+    return () => clearInterval(vid);
   }, [journey]);
 
   const start = () => {
@@ -158,7 +172,6 @@ export default function ChildView() {
     const destCoord   = destination?.coord; // [lat, lon]
     const loc         = coords;
     const isBoarded   = boardedState === 'ON_BUS';
-    const vehicle     = liveStatus?.vehicle;
     const delayMins   = liveStatus?.delayMins;
     const depPast     = depSecs !== null && depSecs <= 0;
 
@@ -227,12 +240,24 @@ export default function ChildView() {
               </Marker>
             )}
 
-            {/* Live bus position */}
-            {vehicle && (
-              <Marker longitude={vehicle.lon} latitude={vehicle.lat} anchor="center">
-                <div style={{ fontSize: 30, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))' }}>🚌</div>
+            {/* Live nearby vehicles */}
+            {vehicles.map(v => (
+              <Marker key={v.id} longitude={v.lon} latitude={v.lat} anchor="center">
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 3,
+                  background: v.isTarget ? '#85A947' : 'rgba(30,30,30,0.82)',
+                  border: v.isTarget ? '2px solid #3E7B27' : '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 6, padding: v.isTarget ? '4px 8px' : '2px 6px',
+                  fontSize: v.isTarget ? 13 : 10, fontWeight: 700,
+                  color: v.isTarget ? '#123524' : '#eee',
+                  boxShadow: v.isTarget ? '0 3px 10px rgba(0,0,0,0.55)' : '0 1px 3px rgba(0,0,0,0.3)',
+                  transform: v.isTarget ? 'scale(1.25)' : 'scale(1)',
+                  transformOrigin: 'center', whiteSpace: 'nowrap', pointerEvents: 'none',
+                }}>
+                  🚌 {v.label}
+                </div>
               </Marker>
-            )}
+            ))}
           </Map>
         ) : (
           <div style={{ width: '100%', height: '100%', background: '#e8f0e8' }} />

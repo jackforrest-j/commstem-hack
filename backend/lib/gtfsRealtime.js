@@ -23,20 +23,19 @@ async function fetchFeed(path) {
 }
 
 // mode class → vehicle position feed path
-// mode 1=train, 4=lightrail, 5/7=bus, 9=ferry
 function feedPathForMode(mode) {
-  if (mode === 1)            return '/v1/gtfs/vehiclepos/nswtrains';
-  if (mode === 4)            return '/v1/gtfs/vehiclepos/lightrail/cbdandsoutheast';
+  if (mode === 1)               return '/v1/gtfs/vehiclepos/nswtrains';
+  if (mode === 4)               return '/v1/gtfs/vehiclepos/lightrail/cbdandsoutheast';
   if (mode === 5 || mode === 7) return '/v1/gtfs/vehiclepos/buses';
-  if (mode === 9)            return '/v1/gtfs/vehiclepos/ferries/sydneyferries';
+  if (mode === 9)               return '/v1/gtfs/vehiclepos/ferries/sydneyferries';
   return null;
 }
 
 function tripUpdateFeedForMode(mode) {
-  if (mode === 1)            return '/v1/gtfs/realtime/nswtrains';
-  if (mode === 4)            return '/v1/gtfs/realtime/lightrail/cbdandsoutheast';
+  if (mode === 1)               return '/v1/gtfs/realtime/nswtrains';
+  if (mode === 4)               return '/v1/gtfs/realtime/lightrail/cbdandsoutheast';
   if (mode === 5 || mode === 7) return '/v1/gtfs/realtime/buses';
-  if (mode === 9)            return '/v1/gtfs/realtime/ferries/sydneyferries';
+  if (mode === 9)               return '/v1/gtfs/realtime/ferries/sydneyferries';
   return null;
 }
 
@@ -48,92 +47,106 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 function timeToMins(hhmm) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
+  const [h, m] = (hhmm || '0:0').split(':').map(Number);
+  return h * 60 + (m || 0);
 }
 
-// Find the vehicle closest to the boarding stop with a matching departure time window.
-// Strategy: score = distance_km + timeDiff_mins * 0.3 → pick lowest score within limits.
-async function getVehicleForJourney(leg) {
-  const feedPath = feedPathForMode(leg.mode);
-  if (!feedPath) return null;
+// Derive a human-readable route label from a GTFS routeId like "2507_524" → "524"
+function routeLabel(routeId) {
+  if (!routeId) return '?';
+  const parts = routeId.split('_');
+  return parts[parts.length - 1] || routeId;
+}
 
-  const fromCoord = leg.fromCoord; // [lat, lon]
-  if (!fromCoord) return null;
-  const [stopLat, stopLon] = fromCoord;
-
-  // Scheduled departure as HH:MM
-  const depDate = leg.departs ? new Date(leg.departs) : null;
-  const depMins = depDate
-    ? depDate.getHours() * 60 + depDate.getMinutes()
-    : null;
+// Return up to `limit` vehicles nearest to (lat, lon) from the given mode's feed.
+// Each vehicle is tagged { id, lat, lon, label, routeId, isTarget }.
+// Target = best match for activeLeg (by boarding-stop proximity + start-time).
+async function getNearbyVehicles(lat, lon, mode, activeLeg, limit = 100) {
+  const feedPath = feedPathForMode(mode ?? 5);
+  if (!feedPath) return [];
 
   let feed;
-  try { feed = await fetchFeed(feedPath); } catch { return null; }
+  try { feed = await fetchFeed(feedPath); } catch { return []; }
 
-  let best = null, bestScore = Infinity;
+  const depMins = activeLeg?.departs
+    ? (() => { const d = new Date(activeLeg.departs); return d.getHours() * 60 + d.getMinutes(); })()
+    : null;
+  const stopLat = activeLeg?.fromCoord?.[0];
+  const stopLon = activeLeg?.fromCoord?.[1];
+
+  const vehicles = [];
+
   for (const entity of feed.entity) {
     const vp = entity.vehicle;
     if (!vp?.position) continue;
 
-    const dist = haversineKm(stopLat, stopLon, vp.position.latitude, vp.position.longitude);
-    if (dist > 10) continue; // ignore vehicles more than 10 km away
+    const vLat = vp.position.latitude;
+    const vLon = vp.position.longitude;
+    const dist = haversineKm(lat, lon, vLat, vLon);
+    if (dist > 5) continue; // 5 km radius
 
-    let timePenalty = 0;
-    if (depMins !== null && vp.trip?.startTime) {
-      const startMins = timeToMins(vp.trip.startTime.slice(0, 5));
-      const diff = Math.abs(startMins - depMins);
-      if (diff > 30) continue; // departure time too different
-      timePenalty = diff * 0.3;
+    // Target score: lower = better match for activeLeg
+    let targetScore = Infinity;
+    if (stopLat != null && depMins !== null) {
+      const distToStop = haversineKm(stopLat, stopLon, vLat, vLon);
+      if (vp.trip?.startTime) {
+        const diff = Math.abs(timeToMins(vp.trip.startTime.slice(0, 5)) - depMins);
+        if (diff <= 30) targetScore = distToStop + diff * 0.3;
+      } else {
+        targetScore = distToStop * 2;
+      }
     }
 
-    const score = dist + timePenalty;
-    if (score < bestScore) {
-      bestScore = score;
-      best = {
-        lat: vp.position.latitude,
-        lon: vp.position.longitude,
-        tripId: vp.trip?.tripId,
-        routeId: vp.trip?.routeId,
-      };
-    }
+    vehicles.push({
+      id:          entity.id,
+      lat:         vLat,
+      lon:         vLon,
+      label:       routeLabel(vp.trip?.routeId),
+      routeId:     vp.trip?.routeId || '',
+      dist,
+      targetScore,
+      isTarget:    false,
+    });
   }
-  return best;
+
+  // Closest 100 by distance
+  vehicles.sort((a, b) => a.dist - b.dist);
+  const closest = vehicles.slice(0, limit);
+
+  // Mark best target candidate
+  let best = null;
+  for (const v of closest) {
+    if (v.targetScore < Infinity && (!best || v.targetScore < best.targetScore)) best = v;
+  }
+  if (best) best.isTarget = true;
+
+  // Strip internal scoring fields before returning
+  return closest.map(({ dist, targetScore, ...v }) => v);
 }
 
-// Get delay in seconds for a trip, matched by proximity + start time (same strategy).
+// Get delay in seconds for the active leg (best-effort, matched by start time).
 async function getDelayForJourney(leg) {
   const feedPath = tripUpdateFeedForMode(leg.mode);
   if (!feedPath) return null;
 
-  const fromCoord = leg.fromCoord;
   const depDate = leg.departs ? new Date(leg.departs) : null;
   const depMins = depDate ? depDate.getHours() * 60 + depDate.getMinutes() : null;
 
   let feed;
   try { feed = await fetchFeed(feedPath); } catch { return null; }
 
-  // Find the best-matching trip update
   let bestDelay = null, bestScore = Infinity;
   for (const entity of feed.entity) {
     const tu = entity.tripUpdate;
     if (!tu?.stopTimeUpdate?.length) continue;
+    if (!tu.trip?.startTime || depMins === null) continue;
 
-    let timePenalty = 999;
-    if (depMins !== null && tu.trip?.startTime) {
-      const diff = Math.abs(timeToMins(tu.trip.startTime.slice(0, 5)) - depMins);
-      if (diff > 30) continue;
-      timePenalty = diff;
-    }
+    const diff = Math.abs(timeToMins(tu.trip.startTime.slice(0, 5)) - depMins);
+    if (diff > 30 || diff >= bestScore) continue;
 
-    if (timePenalty < bestScore) {
-      const stu = tu.stopTimeUpdate[0];
-      const delay = stu?.arrival?.delay ?? stu?.departure?.delay ?? null;
-      if (delay !== null) {
-        bestScore = timePenalty;
-        bestDelay = delay;
-      }
-    }
+    const stu = tu.stopTimeUpdate[0];
+    const delay = stu?.arrival?.delay ?? stu?.departure?.delay ?? null;
+    if (delay !== null) { bestScore = diff; bestDelay = delay; }
   }
   return bestDelay;
 }
@@ -151,4 +164,4 @@ async function sampleVehicles(n = 10) {
   }));
 }
 
-module.exports = { getVehicleForJourney, getDelayForJourney, sampleVehicles };
+module.exports = { getNearbyVehicles, getDelayForJourney, sampleVehicles };

@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { searchStops, nearbyStops, planTrip, planTripFromCoord, getDepartures } = require('../lib/nswTransport');
-const { sampleVehicles } = require('../lib/gtfsRealtime');
+const { sampleVehicles, getNearbyVehicles } = require('../lib/gtfsRealtime');
 const store = require('../lib/journeyStore');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -102,6 +102,21 @@ router.get('/departures', async (req, res) => {
   try {
     const departures = await getDepartures(stop);
     res.json(departures);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Nearby vehicles — used by both child and parent map
+router.get('/vehicles/nearby', async (req, res) => {
+  const { lat, lon } = req.query;
+  if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
+  const journey   = store.getJourney();
+  const activeLeg = journey?.legs?.find(l => l.mode != null);
+  const mode      = activeLeg?.mode ?? 5;
+  try {
+    const vehicles = await getNearbyVehicles(parseFloat(lat), parseFloat(lon), mode, activeLeg);
+    res.json(vehicles);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
