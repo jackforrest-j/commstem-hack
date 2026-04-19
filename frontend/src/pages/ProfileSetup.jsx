@@ -316,10 +316,10 @@ export default function ProfileSetup() {
     );
 
     const TRANSPORT_CHIPS = [
-      { modes: [1],    label: 'Train', emoji: '🚆' },
-      { modes: [5, 7], label: 'Bus',   emoji: '🚌' },
-      { modes: [4],    label: 'Tram',  emoji: '🚊' },
-      { modes: [9],    label: 'Ferry', emoji: '⛴️' },
+      { modes: [1, 2, 11], label: 'Train', emoji: '🚆' }, // Sydney Trains, TrainLink, Metro
+      { modes: [5, 7, 10], label: 'Bus',   emoji: '🚌' }, // Bus, Coach, School bus
+      { modes: [4],        label: 'Tram',  emoji: '🚊' }, // Light Rail
+      { modes: [9],        label: 'Ferry', emoji: '⛴️' },
     ];
     const allActive = allowedModes === null;
 

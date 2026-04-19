@@ -74,7 +74,6 @@ export default function ChildView() {
   const [savedDests, setSavedDests]     = useState([]);
   const [loadingDest, setLoadingDest]   = useState(null); // dest id being auto-confirmed
   const [walkRoute, setWalkRoute]       = useState(null); // GeoJSON from Mapbox Directions
-  const [noRoutesForPrefs, setNoRoutesForPrefs] = useState(false); // prefs filtered everything out
   const watchRef        = useRef(null);
   const coordsRef       = useRef(null);
   const debounceRef     = useRef(null);
@@ -554,7 +553,6 @@ export default function ChildView() {
     // Don't auto-reroute once the child has boarded
     if (silent && boardedState) return;
     setLoadingDest(dest.id);
-    setNoRoutesForPrefs(false);
     const isAddress = !dest.stop_id;
     const stop = { id: dest.stop_id || null, name: dest.stop_name, coord: dest.stop_coord };
     setDestination(stop);
@@ -589,10 +587,6 @@ export default function ChildView() {
       const fetchedTrips = await res.json();
       if (Array.isArray(fetchedTrips) && fetchedTrips.length > 0) {
         await confirmTrip(fetchedTrips[0]);
-      } else if (Array.isArray(fetchedTrips) && fetchedTrips.length === 0 && !ignorePrefs) {
-        // Prefs filtered everything out — show override option
-        setNoRoutesForPrefs(true);
-        setTrips([]);
       } else {
         setTrips(fetchedTrips || []);
       }
@@ -753,22 +747,7 @@ export default function ChildView() {
                 Finding trips…
               </div>
             )}
-            {trips?.length === 0 && noRoutesForPrefs && destination && (
-              <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', textAlign: 'center' }}>
-                <div style={{ fontSize: 22, marginBottom: 8 }}>🚫</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#F59E0B', marginBottom: 4 }}>No routes match your settings</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 14 }}>
-                  Your parent has restricted the transport modes available to you.
-                </div>
-                <button
-                  onClick={() => goTo({ stop_id: destination.id, stop_name: destination.name, stop_coord: destination.coord }, false, true)}
-                  style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: '#F59E0B', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Show all routes →
-                </button>
-              </div>
-            )}
-            {trips?.length === 0 && !noRoutesForPrefs && (
+            {trips?.length === 0 && (
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
                 No trips found. Try a different destination.
               </div>
@@ -805,9 +784,14 @@ export default function ChildView() {
                         <span style={{ fontSize: 17, fontWeight: 800, color: isFirst ? '#fff' : '#EFE3C2' }}>
                           {label}
                         </span>
-                        {isFirst && (
+                        {isFirst && !trip.prefsMismatch && (
                           <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#85A947', background: 'rgba(133,169,71,0.15)', padding: '2px 8px', borderRadius: 6 }}>
                             Next
+                          </span>
+                        )}
+                        {trip.prefsMismatch && (
+                          <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#F59E0B', background: 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 6 }}>
+                            ⚠ Outside preferences
                           </span>
                         )}
                       </div>
