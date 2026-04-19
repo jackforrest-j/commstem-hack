@@ -134,18 +134,26 @@ export default function SafeCommuteDashboard() {
     });
   };
 
-  const childConnected = !!status?.child;
-  const state       = status?.state ?? 'WAITING';
-  const eta         = status?.eta_minutes;
-  const stop        = status?.nearest_stop ?? '—';
-  const line        = status?.line;
-  const childLng    = status?.child?.lon ?? INITIAL_VIEW.longitude;
-  const childLat    = status?.child?.lat ?? INITIAL_VIEW.latitude;
-  const liveMode    = status?.mode === 'live';
-  const originCoord = status?.originCoord;
-  const destCoord   = status?.destCoord;
-  const destName    = status?.destName;
-  const delayMins   = status?.delayMins;
+  const childConnected     = !!status?.child;
+  const state              = status?.state ?? 'WAITING';
+  const eta                = status?.eta_minutes;
+  const stop               = status?.nearest_stop ?? '—';
+  const line               = status?.line;
+  const childLng           = status?.child?.lon ?? INITIAL_VIEW.longitude;
+  const childLat           = status?.child?.lat ?? INITIAL_VIEW.latitude;
+  const liveMode           = status?.mode === 'live';
+  const originCoord        = status?.originCoord;
+  const destCoord          = status?.destCoord;
+  const destName           = status?.destName;
+  const delayMins          = status?.delayMins;
+  const pendingRouteRequest = status?.pendingRouteRequest;
+
+  const respondToApproval = async (approved) => {
+    await fetch(`${API_BASE}/api/safecommute/route-approval-response`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentId: user?.id, approved }),
+    });
+  };
 
   // Detect walking: WAITING state + child location + boarding stop + >10m away
   const distToStop = (state === 'WAITING' && childConnected && originCoord)
@@ -348,6 +356,76 @@ export default function SafeCommuteDashboard() {
             </div>
           )}
         </div>
+
+        {/* Route approval request from child */}
+        {pendingRouteRequest && (
+          <div style={{
+            marginBottom: 16,
+            background: 'rgba(245,158,11,0.08)', border: '1.5px solid rgba(245,158,11,0.4)',
+            borderRadius: 14, padding: '14px 16px',
+          }}>
+            <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: '#FBBF24', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+              Route approval needed
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+              {childName || 'Your child'} wants to use an alternative route
+            </div>
+            {pendingRouteRequest.filteredModeLabels?.length > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                No {pendingRouteRequest.filteredModeLabels.join(' or ')} routes available — they found an alternative.
+              </div>
+            )}
+            {pendingRouteRequest.trip && (() => {
+              const leg = pendingRouteRequest.trip.legs?.[0];
+              const MODE_ICONS_PARENT = { 1: '🚆', 4: '🚊', 5: '🚌', 7: '🚌', 9: '⛴️', 2: '🚆', 11: '🚇' };
+              const secsUntil = Math.round((new Date(pendingRouteRequest.trip.departs) - Date.now()) / 1000);
+              const label = secsUntil <= 0 ? 'Now'
+                : secsUntil < 3600 ? `${Math.round(secsUntil/60)} min`
+                : new Date(pendingRouteRequest.trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.05)', borderRadius: 10,
+                  padding: '10px 12px', marginBottom: 12,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 16 }}>{MODE_ICONS_PARENT[leg?.mode] || '🚌'}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{leg?.line || '—'}</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 'auto' }}>in {label}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {pendingRouteRequest.trip.durationMin} min
+                    {pendingRouteRequest.trip.changes > 0 ? ` · ${pendingRouteRequest.trip.changes} change${pendingRouteRequest.trip.changes > 1 ? 's' : ''}` : ' · Direct'}
+                    {' · '}to {pendingRouteRequest.trip.legs?.[pendingRouteRequest.trip.legs.length - 1]?.to?.split(',')[0]}
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => respondToApproval(false)}
+                style={{
+                  flex: 1, padding: '11px', fontSize: 14, fontWeight: 700,
+                  background: 'rgba(248,113,113,0.12)', color: '#f87171',
+                  border: '1.5px solid rgba(248,113,113,0.35)', borderRadius: 10, cursor: 'pointer',
+                }}
+              >
+                ✕ Deny
+              </button>
+              <button
+                onClick={() => respondToApproval(true)}
+                style={{
+                  flex: 2, padding: '11px', fontSize: 14, fontWeight: 700,
+                  background: 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)',
+                  color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer',
+                  boxShadow: '0 3px 12px rgba(62,123,39,0.4)',
+                }}
+              >
+                ✓ Approve route
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Stats row */}
         {isWalking ? (

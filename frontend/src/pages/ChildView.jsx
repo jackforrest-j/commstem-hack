@@ -68,12 +68,17 @@ export default function ChildView() {
   const [trips, setTrips]               = useState(null);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [journey, setJourney]           = useState(null);
-  const [boardedState, setBoardedState] = useState(null);
-  const [liveStatus, setLiveStatus]     = useState(null);
-  const [vehicles, setVehicles]         = useState([]);
-  const [savedDests, setSavedDests]     = useState([]);
-  const [loadingDest, setLoadingDest]   = useState(null); // dest id being auto-confirmed
-  const [walkRoute, setWalkRoute]       = useState(null); // GeoJSON from Mapbox Directions
+  const [boardedState, setBoardedState]     = useState(null);
+  const [liveStatus, setLiveStatus]         = useState(null);
+  const [vehicles, setVehicles]             = useState([]);
+  const [savedDests, setSavedDests]         = useState([]);
+  const [loadingDest, setLoadingDest]       = useState(null); // dest id being auto-confirmed
+  const [walkRoute, setWalkRoute]           = useState(null); // GeoJSON from Mapbox Directions
+  const [altData, setAltData]               = useState(null); // { trips, filteredModeLabels } when mode filter blocked routes
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  const [approvalDenied, setApprovalDenied] = useState(false);
+  const awaitingApprovalRef = useRef(false);
+  const altDataRef          = useRef(null);
   const watchRef        = useRef(null);
   const coordsRef       = useRef(null);
   const debounceRef     = useRef(null);
@@ -86,12 +91,14 @@ export default function ChildView() {
 
   // Keep refs in sync on every render
   useEffect(() => { destRef.current = destination; }, [destination]);
+  useEffect(() => { awaitingApprovalRef.current = awaitingApproval; }, [awaitingApproval]);
+  useEffect(() => { altDataRef.current = altData; }, [altData]);
 
   useEffect(() => {
     if (!parentId) return;
     const pollStatus = () =>
       fetch(`${API_BASE}/api/safecommute/status?parentId=${parentId}`)
-        .then(r => r.json()).then(d => {
+        .then(r => r.json()).then(async d => {
           setLiveStatus(d);
           if (d.prefsVersion) {
             if (prefsVersionRef.current !== null &&
@@ -102,6 +109,20 @@ export default function ChildView() {
             } else {
               prefsVersionRef.current = d.prefsVersion;
             }
+          }
+          // Handle parent's approval/denial of alternative route
+          if (d.routeApprovalStatus === 'approved' && awaitingApprovalRef.current && altDataRef.current?.trips?.length) {
+            setAwaitingApproval(false);
+            setApprovalDenied(false);
+            await fetch(`${API_BASE}/api/safecommute/route-approval-clear`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ parentId }),
+            });
+            await confirmTrip(altDataRef.current.trips[0]);
+            setAltData(null);
+          } else if (d.routeApprovalStatus === 'denied' && awaitingApprovalRef.current) {
+            setAwaitingApproval(false);
+            setApprovalDenied(true);
           }
         }).catch(() => {});
     pollStatus();
@@ -229,7 +250,17 @@ export default function ChildView() {
     }
 
     const res = await fetch(url);
-    setTrips(await res.json());
+    const data = await res.json();
+    const isFiltered = data && !Array.isArray(data) && data.modesFiltered;
+    if (isFiltered && data.trips?.length) {
+      setAltData({ trips: data.trips, filteredModeLabels: data.filteredModeLabels || [] });
+      setTrips(null);
+    } else {
+      setAltData(null);
+      setTrips(Array.isArray(data) ? data : []);
+    }
+    setApprovalDenied(false);
+    setAwaitingApproval(false);
     setLoadingTrips(false);
   };
 
@@ -584,11 +615,21 @@ export default function ChildView() {
         setTrips([]); setLoadingDest(null); return;
       }
       const res = await fetch(url);
-      const fetchedTrips = await res.json();
-      if (Array.isArray(fetchedTrips) && fetchedTrips.length > 0) {
+      const data = await res.json();
+      const isFiltered = data && !Array.isArray(data) && data.modesFiltered;
+      const fetchedTrips = isFiltered ? data.trips : (Array.isArray(data) ? data : []);
+
+      if (isFiltered && fetchedTrips.length > 0) {
+        setAltData({ trips: fetchedTrips, filteredModeLabels: data.filteredModeLabels || [] });
+        setApprovalDenied(false);
+        setAwaitingApproval(false);
+        setTrips(null);
+      } else if (fetchedTrips.length > 0 && !silent) {
+        setAltData(null);
         await confirmTrip(fetchedTrips[0]);
-      } else {
-        setTrips(fetchedTrips || []);
+      } else if (!silent) {
+        setAltData(null);
+        setTrips(fetchedTrips);
       }
     } catch {
       setTrips([]);
@@ -747,9 +788,100 @@ export default function ChildView() {
                 Finding trips…
               </div>
             )}
-            {trips?.length === 0 && (
+            {trips?.length === 0 && !altData && (
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
                 No trips found. Try a different destination.
+              </div>
+            )}
+
+            {/* Alternative routes when mode filter blocked all results */}
+            {altData && (
+              <div style={{
+                marginTop: 16,
+                background: 'rgba(245,158,11,0.07)',
+                border: '1.5px solid rgba(245,158,11,0.3)',
+                borderRadius: 16, padding: '14px 16px',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#FBBF24', marginBottom: 4 }}>
+                  ⚠ No {altData.filteredModeLabels.join(' or ')} routes found
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 14, lineHeight: 1.5 }}>
+                  There's an alternative route available, but it uses a different mode.
+                  Your parent needs to approve it first.
+                </div>
+
+                {/* Show the first alternative trip */}
+                {altData.trips.slice(0, 2).map((trip, i) => {
+                  const leg = trip.legs[0];
+                  const secsUntil = Math.round((new Date(trip.departs) - Date.now()) / 1000);
+                  const label = secsUntil <= 0 ? 'Now'
+                    : secsUntil < 60 ? `${secsUntil}s`
+                    : secsUntil < 3600 ? `${Math.round(secsUntil/60)} min`
+                    : new Date(trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={i} style={{
+                      background: 'rgba(255,255,255,0.05)', borderRadius: 12,
+                      padding: '12px 14px', marginBottom: 10,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 8px', fontSize: 12, fontWeight: 800,
+                          background: 'rgba(255,255,255,0.08)', color: '#EFE3C2',
+                          borderRadius: 7, border: '1px solid rgba(255,255,255,0.12)',
+                        }}>
+                          {MODE_ICONS[leg?.mode] || '🚌'} {leg?.line}
+                        </span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{label}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 5 }}>
+                        {new Date(trip.departs).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                        {' '}· {trip.durationMin} min
+                        {trip.changes > 0 ? ` · ${trip.changes} change${trip.changes > 1 ? 's' : ''}` : ' · Direct'}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {approvalDenied && (
+                  <div style={{ fontSize: 12, color: '#f87171', fontWeight: 700, marginBottom: 10, textAlign: 'center' }}>
+                    ✗ Parent declined — try a different destination
+                  </div>
+                )}
+
+                {awaitingApproval ? (
+                  <div style={{
+                    padding: '12px', borderRadius: 12, textAlign: 'center',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', animation: 'pulse 1.5s ease-in-out infinite' }}>
+                      ⏳ Waiting for parent to approve…
+                    </div>
+                  </div>
+                ) : !approvalDenied && (
+                  <button
+                    onClick={async () => {
+                      setAwaitingApproval(true);
+                      await fetch(`${API_BASE}/api/safecommute/route-approval-request`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          parentId,
+                          trip: altData.trips[0],
+                          filteredModeLabels: altData.filteredModeLabels,
+                        }),
+                      });
+                    }}
+                    style={{
+                      width: '100%', padding: '13px', fontSize: 14, fontWeight: 800,
+                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                      color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer',
+                      boxShadow: '0 4px 16px rgba(245,158,11,0.35)',
+                    }}
+                  >
+                    Ask parent to approve →
+                  </button>
+                )}
               </div>
             )}
 

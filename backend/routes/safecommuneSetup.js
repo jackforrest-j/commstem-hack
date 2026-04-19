@@ -8,6 +8,13 @@ const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+const CLASS_LABELS = { 1: 'Train', 2: 'Train', 11: 'Metro', 4: 'Tram', 5: 'Bus', 7: 'Bus', 10: 'Bus', 9: 'Ferry' };
+function allowedModeLabels(modes) {
+  if (!modes?.length) return [];
+  const seen = new Set();
+  return modes.map(m => CLASS_LABELS[m] || 'Transit').filter(l => !seen.has(l) && seen.add(l));
+}
+
 async function fetchChildPrefs(parentId) {
   if (!parentId) return null;
   try {
@@ -90,6 +97,14 @@ router.get('/trips', async (req, res) => {
     let trips = await planTrip(from, to, allowedModes);
     if (!trips.length) console.warn(`[trips] no results for from=${from} to=${to}`);
     if (prefs) trips = scoreAndRankTrips(trips, prefs, null, null, null);
+
+    // If mode-filtered and empty, retry without restriction and return alternatives
+    if (!trips.length && allowedModes?.length) {
+      const altTrips = await planTrip(from, to, null);
+      if (altTrips.length) {
+        return res.json({ trips: altTrips, modesFiltered: true, filteredModeLabels: allowedModeLabels(allowedModes) });
+      }
+    }
     res.json(trips);
   } catch (e) {
     console.error('[trips] error:', e.message);
@@ -117,6 +132,19 @@ router.get('/trips/from-coord', async (req, res) => {
       const childLon  = parseFloat(lon);
       const destCoord = (toLat && toLon) ? [parseFloat(toLat), parseFloat(toLon)] : null;
       trips = scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord);
+    }
+
+    // If mode-filtered and empty, retry without restriction and return alternatives
+    if (!trips.length && allowedModes?.length) {
+      let altTrips;
+      if (toLat && toLon) {
+        altTrips = await planTripFromCoordToCoord(parseFloat(lat), parseFloat(lon), parseFloat(toLat), parseFloat(toLon), null);
+      } else {
+        altTrips = await planTripFromCoord(parseFloat(lat), parseFloat(lon), to, null);
+      }
+      if (altTrips.length) {
+        return res.json({ trips: altTrips, modesFiltered: true, filteredModeLabels: allowedModeLabels(allowedModes) });
+      }
     }
     res.json(trips);
   } catch (e) {
@@ -195,6 +223,31 @@ router.post('/set-destination', async (req, res) => {
     pending_destination_name: name,
     updated_at: new Date().toISOString(),
   });
+  res.json({ ok: true });
+});
+
+// Child requests parent approval for an alternative route (when preferred modes have no trips)
+router.post('/route-approval-request', (req, res) => {
+  const { parentId, trip, filteredModeLabels } = req.body;
+  if (!parentId || !trip) return res.status(400).json({ error: 'parentId and trip required' });
+  store.setPendingRouteRequest(parentId, { trip, filteredModeLabels: filteredModeLabels || [], ts: Date.now() });
+  res.json({ ok: true });
+});
+
+// Parent approves or denies the pending alternative route request
+router.post('/route-approval-response', (req, res) => {
+  const { parentId, approved } = req.body;
+  if (!parentId || approved == null) return res.status(400).json({ error: 'parentId and approved required' });
+  store.setRouteApprovalStatus(parentId, approved ? 'approved' : 'denied');
+  if (!approved) store.setPendingRouteRequest(parentId, null);
+  res.json({ ok: true });
+});
+
+// Child confirms the approved trip and clears the approval state
+router.post('/route-approval-clear', (req, res) => {
+  const { parentId } = req.body;
+  store.setPendingRouteRequest(parentId, null);
+  store.setRouteApprovalStatus(parentId, null);
   res.json({ ok: true });
 });
 

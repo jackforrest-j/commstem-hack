@@ -73,6 +73,9 @@ router.get('/status', async (req, res) => {
       }
     } catch { /* non-fatal */ }
 
+    const pendingRouteRequest = store.getPendingRouteRequest(parentId);
+    const routeApprovalStatus = store.getRouteApprovalStatus(parentId);
+
     return res.json({
       state,
       child:       child ? { lat: child.lat, lon: child.lon } : null,
@@ -84,6 +87,8 @@ router.get('/status', async (req, res) => {
       delayMins,
       rerouteAvailable,
       prefsVersion,
+      pendingRouteRequest,
+      routeApprovalStatus,
       originCoord: firstLeg?.fromCoord  || null,
       originName:  firstLeg?.from       || null,
       destCoord:   lastLeg?.toCoord     || null,
@@ -108,12 +113,17 @@ router.get('/status', async (req, res) => {
     }
   } catch { /* non-fatal */ }
 
+  const pendingRouteRequest = store.getPendingRouteRequest(parentId);
+  const routeApprovalStatus = store.getRouteApprovalStatus(parentId);
+
   res.json({
     state:        'WAITING',
     child:        childConnected ? { lat: storedChild.lat, lon: storedChild.lon } : null,
     eta_minutes:  null,
     nearest_stop: '—',
     prefsVersion: idlePrefsVersion,
+    pendingRouteRequest,
+    routeApprovalStatus,
     timestamp:    new Date().toISOString(),
     mode:         'idle',
   });
