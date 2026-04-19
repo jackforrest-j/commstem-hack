@@ -353,19 +353,75 @@ export default function ChildView() {
   }
 
   // ── Main screen ───────────────────────────────────────────────────────────
+  const goTo = (dest) => {
+    if (!sharing) start();
+    selectDestination({ id: dest.stop_id, name: dest.stop_name, coord: dest.stop_coord });
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>{sharing ? '📍' : '🚌'}</div>
-        <div style={styles.heading}>{sharing ? 'Location shared' : 'Ready to go?'}</div>
-        <div style={styles.muted}>
-          {sharing ? 'Your parent can see where you are.' : 'Tap the button so your parent can see where you are.'}
-        </div>
+
+        {/* ── Saved destination circles (primary UI when parent has set them up) ── */}
+        {savedDests.length > 0 && (
+          <>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#EFE3C2', marginBottom: 6, alignSelf: 'flex-start' }}>
+              Where are you going?
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--sidebar-muted)', marginBottom: 24, alignSelf: 'flex-start' }}>
+              Tap a destination — your location will be shared automatically
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, width: '100%', marginBottom: 28 }}>
+              {savedDests.map(d => (
+                <button
+                  key={d.id}
+                  onClick={() => goTo(d)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: 'rgba(133,169,71,0.15)',
+                    border: '2px solid rgba(133,169,71,0.35)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 30,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    transition: 'transform 0.1s, background 0.1s',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(133,169,71,0.28)'; e.currentTarget.style.transform = 'scale(1.06)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(133,169,71,0.15)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                  >
+                    {d.emoji}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#EFE3C2' }}>{d.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={styles.divider} />
+            <div style={{ fontSize: 12, color: 'var(--sidebar-muted)', marginBottom: 10, alignSelf: 'flex-start' }}>
+              Or search for another stop
+            </div>
+          </>
+        )}
+
+        {/* ── No saved dests: show the classic header ── */}
+        {savedDests.length === 0 && (
+          <>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>{sharing ? '📍' : '🚌'}</div>
+            <div style={styles.heading}>{sharing ? 'Location shared' : 'Ready to go?'}</div>
+            <div style={styles.muted}>
+              {sharing ? 'Your parent can see where you are.' : 'Tap the button so your parent can see where you are.'}
+            </div>
+          </>
+        )}
 
         {gpsError && <div style={styles.error}>{gpsError}</div>}
 
         {coords && (
-          <div style={styles.infoCard}>
+          <div style={{ ...styles.infoCard, marginBottom: 12 }}>
             <div style={styles.infoLabel}>LIVE LOCATION</div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#EFE3C2' }}>
               {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
@@ -376,33 +432,23 @@ export default function ChildView() {
           </div>
         )}
 
-        <button onClick={sharing ? stop : start} style={{ ...styles.btn, ...(sharing ? styles.btnStop : styles.btnStart) }}>
-          {sharing ? 'Stop sharing' : 'Share my location'}
-        </button>
+        {/* Share/stop button — secondary when saved dests exist */}
+        {savedDests.length === 0 && (
+          <button onClick={sharing ? stop : start} style={{ ...styles.btn, ...(sharing ? styles.btnStop : styles.btnStart) }}>
+            {sharing ? 'Stop sharing' : 'Share my location'}
+          </button>
+        )}
+        {savedDests.length > 0 && sharing && (
+          <button onClick={stop} style={{ ...styles.btn, ...styles.btnStop, fontSize: 13, padding: '11px' }}>
+            Stop sharing location
+          </button>
+        )}
 
-        {sharing && (
-          <div style={{ width: '100%', marginTop: 32 }}>
-            <div style={styles.divider} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', marginBottom: 12 }}>Where are you going?</div>
-
-            {/* Quick-destination buttons from parent's saved places */}
-            {savedDests.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                {savedDests.map(d => (
-                  <button
-                    key={d.id}
-                    onClick={() => selectDestination({ id: d.stop_id, name: d.stop_name, coord: d.stop_coord })}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '9px 14px', borderRadius: 10, border: '1.5px solid rgba(133,169,71,0.35)',
-                      background: 'rgba(133,169,71,0.1)', color: '#EFE3C2',
-                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >
-                    {d.emoji} {d.label}
-                  </button>
-                ))}
-              </div>
+        {(sharing || savedDests.length > 0) && (
+          <div style={{ width: '100%', marginTop: savedDests.length > 0 ? 0 : 32 }}>
+            {savedDests.length === 0 && <div style={styles.divider} />}
+            {savedDests.length === 0 && (
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#EFE3C2', marginBottom: 12 }}>Where are you going?</div>
             )}
 
             <div style={{ position: 'relative' }}>
