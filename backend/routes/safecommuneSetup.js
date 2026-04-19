@@ -203,7 +203,7 @@ router.post('/set-destination', async (req, res) => {
 // Child manually sets journey state (ON_BUS, WAITING, ARRIVED)
 router.post('/state', (req, res) => {
   const { state, parentId } = req.body;
-  if (!['WAITING', 'ON_BUS', 'ARRIVED'].includes(state)) return res.status(400).json({ error: 'invalid state' });
+  if (!['WAITING', 'AT_STOP', 'ON_BUS', 'ARRIVED'].includes(state)) return res.status(400).json({ error: 'invalid state' });
   store.setManualState(parentId, state);
   res.json({ ok: true });
 });

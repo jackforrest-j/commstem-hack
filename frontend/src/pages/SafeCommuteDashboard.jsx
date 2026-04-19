@@ -12,6 +12,7 @@ const INITIAL_VIEW = { longitude: 151.215, latitude: -33.878, zoom: 13 };
 const STATE_META = {
   WALKING:  { bg: '#F59E0B', label: 'Walking to stop',  icon: '🚶' },
   WAITING:  { bg: '#85A947', label: 'Waiting at stop',  icon: '🚏' },
+  AT_STOP:  { bg: '#F59E0B', label: 'At the stop',      icon: '🚏' },
   ON_BUS:   { bg: '#3E7B27', label: 'On the bus',       icon: '🚌' },
   ARRIVED:  { bg: '#2563eb', label: 'Arrived',          icon: '✅' },
 };

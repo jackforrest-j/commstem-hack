@@ -227,6 +227,14 @@ export default function ChildView() {
     });
   };
 
+  const markAtStop = async () => {
+    await fetch(`${API_BASE}/api/safecommute/state`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'AT_STOP', parentId }),
+    });
+    setBoardedState('AT_STOP');
+  };
+
   const boardBus = async () => {
     await fetch(`${API_BASE}/api/safecommute/state`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -241,6 +249,7 @@ export default function ChildView() {
     const originCoord = leg?.fromCoord;
     const destCoord   = destination?.coord;
     const loc         = coords;
+    const isAtStop    = boardedState === 'AT_STOP';
     const isBoarded   = boardedState === 'ON_BUS';
     const delayMins        = liveStatus?.delayMins;
     const rerouteAvailable = liveStatus?.rerouteAvailable && delayMins > 10;
@@ -443,29 +452,51 @@ export default function ChildView() {
 
           {!isBoarded ? (
             <div>
-              <button
-                disabled={!atStop}
-                style={{
-                  width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
-                  background: atStop
-                    ? 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)'
-                    : 'rgba(255,255,255,0.07)',
-                  color: atStop ? '#fff' : 'rgba(255,255,255,0.3)',
-                  border: atStop ? 'none' : '1.5px solid rgba(255,255,255,0.1)',
-                  borderRadius: 16,
-                  cursor: atStop ? 'pointer' : 'not-allowed',
-                  boxShadow: atStop ? '0 4px 20px rgba(62,123,39,0.5)' : 'none',
-                  letterSpacing: '0.01em',
-                  transition: 'all 0.3s',
-                }}
-                onClick={atStop ? boardBus : undefined}
-              >
-                {MODE_ICONS[leg?.mode] || '🚌'} I'm on the {MODE_LABELS[leg?.mode] || 'bus'}!
-              </button>
-              {!atStop && (
-                <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
-                  {noGps ? '📍 Waiting for GPS…' : `${distM}m from stop — get closer to unlock`}
-                </div>
+              {!isAtStop ? (
+                <>
+                  <button
+                    disabled={!atStop}
+                    style={{
+                      width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                      background: atStop
+                        ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+                        : 'rgba(255,255,255,0.07)',
+                      color: atStop ? '#fff' : 'rgba(255,255,255,0.3)',
+                      border: atStop ? 'none' : '1.5px solid rgba(255,255,255,0.1)',
+                      borderRadius: 16,
+                      cursor: atStop ? 'pointer' : 'not-allowed',
+                      boxShadow: atStop ? '0 4px 20px rgba(245,158,11,0.4)' : 'none',
+                      letterSpacing: '0.01em',
+                      transition: 'all 0.3s',
+                    }}
+                    onClick={atStop ? markAtStop : undefined}
+                  >
+                    🚏 I'm at the stop!
+                  </button>
+                  {!atStop && (
+                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>
+                      {noGps ? '📍 Waiting for GPS…' : `${distM}m from stop — get closer to unlock`}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: '#F59E0B', fontWeight: 700 }}>
+                    🚏 Waiting for your {MODE_LABELS[leg?.mode] || 'service'}…
+                  </div>
+                  <button
+                    style={{
+                      width: '100%', padding: '17px', fontSize: 17, fontWeight: 800,
+                      background: 'linear-gradient(135deg, #85A947 0%, #3E7B27 100%)',
+                      color: '#fff', border: 'none', borderRadius: 16, cursor: 'pointer',
+                      boxShadow: '0 4px 20px rgba(62,123,39,0.5)',
+                      letterSpacing: '0.01em', transition: 'all 0.3s',
+                    }}
+                    onClick={boardBus}
+                  >
+                    {MODE_ICONS[leg?.mode] || '🚌'} I'm on the {MODE_LABELS[leg?.mode] || 'bus'}!
+                  </button>
+                </>
               )}
             </div>
           ) : (
