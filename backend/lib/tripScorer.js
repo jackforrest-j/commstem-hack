@@ -86,11 +86,8 @@ function scoreAndRankTrips(trips, prefs, childLat, childLon, destCoord) {
   });
 
   const valid = scored.filter(s => s.score !== -Infinity);
-  const sorted = (valid.length ? valid : scored.map(s => ({ ...s, score: 0 })))
-    .sort((a, b) => b.score - a.score)
-    .map(s => s.trip);
-
-  return sorted;
+  if (!valid.length) return []; // hard filters win — nothing passes
+  return valid.sort((a, b) => b.score - a.score).map(s => s.trip);
 }
 
 module.exports = { scoreAndRankTrips };

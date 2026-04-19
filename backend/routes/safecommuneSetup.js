@@ -82,12 +82,12 @@ router.get('/debug/trip-raw', async (req, res) => {
 
 // Plan trips between two stops
 router.get('/trips', async (req, res) => {
-  const { from, to, parentId } = req.query;
+  const { from, to, parentId, ignorePrefs } = req.query;
   if (!from || !to) return res.status(400).json({ error: 'from and to required' });
   try {
     let trips = await planTrip(from, to);
     if (!trips.length) console.warn(`[trips] no results for from=${from} to=${to}`);
-    if (parentId) {
+    if (parentId && ignorePrefs !== 'true') {
       const prefs = await fetchChildPrefs(parentId);
       if (prefs) trips = scoreAndRankTrips(trips, prefs, null, null, null);
     }
@@ -100,7 +100,7 @@ router.get('/trips', async (req, res) => {
 
 // Plan trips from GPS coordinates to a destination stop ID or coordinate
 router.get('/trips/from-coord', async (req, res) => {
-  const { lat, lon, to, toLat, toLon, parentId } = req.query;
+  const { lat, lon, to, toLat, toLon, parentId, ignorePrefs } = req.query;
   if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
   try {
     let trips;
@@ -111,7 +111,7 @@ router.get('/trips/from-coord', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'either to (stop ID) or toLat+toLon required' });
     }
-    if (parentId) {
+    if (parentId && ignorePrefs !== 'true') {
       const prefs = await fetchChildPrefs(parentId);
       if (prefs) {
         const childLat  = parseFloat(lat);
